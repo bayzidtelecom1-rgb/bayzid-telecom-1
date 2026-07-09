@@ -1,0 +1,629 @@
+import React, { useState, useEffect } from 'react';
+import { 
+  INITIAL_CONFIG, 
+  INITIAL_USERS, 
+  INITIAL_OFFERS, 
+  INITIAL_BALANCE_REQUESTS, 
+  INITIAL_ORDERS 
+} from './data';
+import { User, Offer, BalanceRequest, OfferOrder, AppConfig } from './types';
+import UserApp from './components/UserApp';
+import AdminPanel from './components/AdminPanel';
+import { Shield, Sparkles, Smartphone, LogOut, CheckCircle, SmartphoneIcon, User as UserIcon, Settings, Plus, RotateCcw } from 'lucide-react';
+import { supabase, isSupabaseConfigured } from './lib/supabase';
+import {
+  fetchAppSettings,
+  updateAppSettings,
+  fetchDriveOffers,
+  createDriveOffer,
+  updateDriveOffer,
+  deleteDriveOffer,
+  fetchUsersProfiles,
+  updateUserProfile,
+  fetchDeposits,
+  createDepositRequest,
+  approveDepositRequest,
+  rejectDepositRequest,
+  fetchOrders,
+  purchaseOfferRPC,
+  completeOrder,
+  cancelAndRefundOrderRPC
+} from './lib/supabaseService';
+
+export default function App() {
+  // Load state from local storage or fallback to initial seed data
+  const [config, setConfig] = useState<AppConfig>(() => {
+    const saved = localStorage.getItem('bayzid_telecom_config');
+    return saved ? JSON.parse(saved) : INITIAL_CONFIG;
+  });
+
+  const [users, setUsers] = useState<User[]>(() => {
+    const saved = localStorage.getItem('bayzid_telecom_users_v2');
+    return saved ? JSON.parse(saved) : INITIAL_USERS;
+  });
+
+  const [offers, setOffers] = useState<Offer[]>(() => {
+    const saved = localStorage.getItem('bayzid_telecom_offers');
+    return saved ? JSON.parse(saved) : INITIAL_OFFERS;
+  });
+
+  const [balanceRequests, setBalanceRequests] = useState<BalanceRequest[]>(() => {
+    const saved = localStorage.getItem('bayzid_telecom_balance_requests');
+    return saved ? JSON.parse(saved) : INITIAL_BALANCE_REQUESTS;
+  });
+
+  const [orders, setOrders] = useState<OfferOrder[]>(() => {
+    const saved = localStorage.getItem('bayzid_telecom_orders');
+    return saved ? JSON.parse(saved) : INITIAL_ORDERS;
+  });
+
+  // Simulator control state
+  const [selectedUserId, setSelectedUserId] = useState<string>('user-karim');
+  const [currentView, setCurrentView] = useState<'user' | 'admin'>('user');
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(true);
+  const [isDbConnected, setIsDbConnected] = useState<boolean | null>(null);
+
+  // Load and synchronize data with Supabase in real-time
+  const loadAllData = async () => {
+    try {
+      const dbConfig = await fetchAppSettings();
+      setConfig(dbConfig);
+
+      const dbOffers = await fetchDriveOffers();
+      if (dbOffers && dbOffers.length > 0) {
+        setOffers(dbOffers);
+      }
+
+      const dbUsers = await fetchUsersProfiles();
+      if (dbUsers && dbUsers.length > 0) {
+        setUsers(dbUsers);
+      }
+
+      const dbDeposits = await fetchDeposits();
+      if (dbDeposits && dbDeposits.length > 0) {
+        setBalanceRequests(dbDeposits);
+      }
+
+      const dbOrders = await fetchOrders();
+      if (dbOrders && dbOrders.length > 0) {
+        setOrders(dbOrders);
+      }
+      setIsDbConnected(true);
+    } catch (err) {
+      console.warn('Error loading real-time Supabase data, utilizing local persistence fallback:', err);
+      setIsDbConnected(false);
+    }
+  };
+
+  useEffect(() => {
+    loadAllData();
+
+    // Subscribe to real-time events on Supabase
+    const channel = supabase
+      .channel('schema-db-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'app_settings' }, () => { loadAllData(); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'drive_offers' }, () => { loadAllData(); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'users_profile' }, () => { loadAllData(); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'deposits' }, () => { loadAllData(); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => { loadAllData(); })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  const handleRegisterUser = (newUser: User) => {
+    setUsers(prev => {
+      const updated = [...prev, newUser];
+      localStorage.setItem('bayzid_telecom_users_v2', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const handleUpdateUser = async (userId: string, updatedFields: Partial<User>) => {
+    // Optimistic UI update
+    setUsers(prev => prev.map(u => u.id === userId ? { ...u, ...updatedFields } : u));
+    
+    // Remote database write
+    const success = await updateUserProfile(userId, updatedFields);
+    if (success) {
+      loadAllData();
+    } else {
+      console.warn('Local update only (Supabase not connected/configured)');
+    }
+  };
+
+  // New demo user creation form modal state
+  const [showAddUserModal, setShowAddUserModal] = useState(false);
+  const [newUserName, setNewUserName] = useState('');
+  const [newUserPhone, setNewUserPhone] = useState('');
+  const [newUserLevel, setNewUserLevel] = useState<'Distributor' | 'Dealer' | 'Retailer'>('Dealer');
+
+  // Save changes to localStorage whenever state changes as secondary offline cache
+  useEffect(() => {
+    localStorage.setItem('bayzid_telecom_config', JSON.stringify(config));
+  }, [config]);
+
+  useEffect(() => {
+    localStorage.setItem('bayzid_telecom_users_v2', JSON.stringify(users));
+  }, [users]);
+
+  useEffect(() => {
+    localStorage.setItem('bayzid_telecom_offers', JSON.stringify(offers));
+  }, [offers]);
+
+  useEffect(() => {
+    localStorage.setItem('bayzid_telecom_balance_requests', JSON.stringify(balanceRequests));
+  }, [balanceRequests]);
+
+  useEffect(() => {
+    localStorage.setItem('bayzid_telecom_orders', JSON.stringify(orders));
+  }, [orders]);
+
+  // Find currently simulated user details
+  const activeUser = users.find(u => u.id === selectedUserId) || users[0] || {
+    id: 'guest',
+    name: 'Guest',
+    phone: '01700000000',
+    balance: 0,
+    role: 'user',
+    level: 'Retailer',
+    verified: true,
+    deviceDetails: 'Web Browser'
+  };
+
+  // Callback: User submits manual cash balance request
+  const handleSubmitBalanceRequest = async (req: Omit<BalanceRequest, 'id' | 'userId' | 'userName' | 'status' | 'createdAt'>) => {
+    const newRequest: BalanceRequest = {
+      ...req,
+      id: `req-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      userId: activeUser.id,
+      userName: activeUser.name,
+      status: 'Pending',
+      createdAt: new Date().toISOString()
+    };
+    
+    // Optimistic UI
+    setBalanceRequests(prev => [newRequest, ...prev]);
+
+    try {
+      const success = await createDepositRequest(activeUser.id, req.method, req.amount, req.senderNumber, req.transactionId);
+      if (success) {
+        loadAllData();
+      }
+    } catch (err) {
+      console.warn('Supabase not connected. Running offline-local balance request...');
+    }
+  };
+
+  // Callback: User places a new SIM package order
+  const handleSubmitOrder = async (order: Omit<OfferOrder, 'id' | 'userId' | 'userName' | 'status' | 'createdAt'>) => {
+    const newOrder: OfferOrder = {
+      ...order,
+      id: `order-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      userId: activeUser.id,
+      userName: activeUser.name,
+      status: 'Pending',
+      createdAt: new Date().toISOString()
+    };
+
+    // Optimistic update
+    setUsers(prevUsers => prevUsers.map(u => {
+      if (u.id === activeUser.id) {
+        return { ...u, balance: Math.max(0, u.balance - order.offerPrice) };
+      }
+      return u;
+    }));
+    setOrders(prev => [newOrder, ...prev]);
+
+    try {
+      const res = await purchaseOfferRPC(activeUser.id, order.offerId, order.targetPhone, order.offerPrice);
+      if (res.success) {
+        loadAllData();
+      } else {
+        alert(`Supabase RPC transaction error: ${res.error || 'Check database connectivity.'}`);
+        loadAllData(); // reset balance and state to match database truth
+      }
+    } catch (err) {
+      console.warn('Supabase offline. Handled transaction on local state.');
+    }
+  };
+
+  // Callback: Admin approves deposit request
+  const handleApproveBalance = async (id: string) => {
+    const request = balanceRequests.find(r => r.id === id);
+    if (!request || request.status !== 'Pending') return;
+
+    // Optimistic
+    setBalanceRequests(prev => prev.map(r => r.id === id ? { ...r, status: 'Approved' } : r));
+    setUsers(prevUsers => prevUsers.map(u => {
+      if (u.id === request.userId) {
+        return { ...u, balance: u.balance + request.amount };
+      }
+      return u;
+    }));
+
+    const success = await approveDepositRequest(id, request.amount);
+    if (success) {
+      loadAllData();
+    } else {
+      console.warn('Local update only (Supabase offline)');
+    }
+  };
+
+  // Callback: Admin rejects deposit request
+  const handleRejectBalance = async (id: string) => {
+    setBalanceRequests(prev => prev.map(r => r.id === id ? { ...r, status: 'Rejected' } : r));
+
+    const success = await rejectDepositRequest(id);
+    if (success) {
+      loadAllData();
+    } else {
+      console.warn('Local update only (Supabase offline)');
+    }
+  };
+
+  // Callback: Admin adds a new offer pack
+  const handleAddOffer = async (newOffer: Omit<Offer, 'id' | 'isActive'>) => {
+    const createdLocal: Offer = {
+      ...newOffer,
+      id: `offer-${Date.now()}`,
+      isActive: true
+    };
+    setOffers(prev => [...prev, createdLocal]);
+
+    const res = await createDriveOffer({ ...newOffer, isActive: true });
+    if (res) {
+      loadAllData();
+    } else {
+      console.warn('Local update only (Supabase offline)');
+    }
+  };
+
+  // Callback: Admin deletes an offer pack
+  const handleDeleteOffer = async (id: string) => {
+    setOffers(prev => prev.filter(o => o.id !== id));
+
+    const success = await deleteDriveOffer(id);
+    if (success) {
+      loadAllData();
+    } else {
+      console.warn('Local update only (Supabase offline)');
+    }
+  };
+
+  // Callback: Admin toggles offer active status
+  const handleToggleOfferStatus = async (id: string) => {
+    setOffers(prev => prev.map(o => o.id === id ? { ...o, isActive: !o.isActive } : o));
+
+    const offer = offers.find(o => o.id === id);
+    if (offer) {
+      const success = await updateDriveOffer(id, { isActive: !offer.isActive });
+      if (success) {
+        loadAllData();
+      } else {
+        console.warn('Local update only (Supabase offline)');
+      }
+    }
+  };
+
+  // Callback: Admin dispatches / completes SIM order
+  const handleCompleteOrder = async (id: string) => {
+    setOrders(prev => prev.map(o => o.id === id ? { ...o, status: 'Successful' } : o));
+
+    const success = await completeOrder(id);
+    if (success) {
+      loadAllData();
+    } else {
+      console.warn('Local update only (Supabase offline)');
+    }
+  };
+
+  // Callback: Admin cancels SIM order and refunds money to reseller's wallet
+  const handleCancelOrder = async (id: string) => {
+    const order = orders.find(o => o.id === id);
+    if (!order || order.status !== 'Pending') return;
+
+    // Refund client wallet locally
+    setUsers(prevUsers => prevUsers.map(u => {
+      if (u.id === order.userId) {
+        return { ...u, balance: u.balance + order.offerPrice };
+      }
+      return u;
+    }));
+    setOrders(prev => prev.map(o => o.id === id ? { ...o, status: 'Canceled' } : o));
+
+    const success = await cancelAndRefundOrderRPC(id, order.offerPrice);
+    if (success) {
+      loadAllData();
+      alert(`Order refunded successfully! ${order.offerPrice} Tk returned to ${order.userName}'s wallet via Supabase RPC.`);
+    } else {
+      alert(`Order refunded locally! ${order.offerPrice} Tk returned to ${order.userName}'s wallet.`);
+    }
+  };
+
+  // Callback: Admin updates general branding settings
+  const handleUpdateConfig = async (newConfig: AppConfig) => {
+    setConfig(newConfig);
+
+    const success = await updateAppSettings(newConfig);
+    if (success) {
+      loadAllData();
+    } else {
+      console.warn('Local update only (Supabase offline)');
+    }
+  };
+
+  // Reset simulator to defaults
+  const handleResetData = () => {
+    if (confirm('Are you sure you want to reset all data back to the original demo values?')) {
+      localStorage.removeItem('bayzid_telecom_config');
+      localStorage.removeItem('bayzid_telecom_users_v2');
+      localStorage.removeItem('bayzid_telecom_offers');
+      localStorage.removeItem('bayzid_telecom_balance_requests');
+      localStorage.removeItem('bayzid_telecom_orders');
+      
+      setConfig(INITIAL_CONFIG);
+      setUsers(INITIAL_USERS);
+      setOffers(INITIAL_OFFERS);
+      setBalanceRequests(INITIAL_BALANCE_REQUESTS);
+      setOrders(INITIAL_ORDERS);
+      setSelectedUserId(INITIAL_USERS[0].id);
+      setCurrentView('user');
+      alert('Data reset to defaults successfully.');
+    }
+  };
+
+  const handleCreateUser = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newUserName || !newUserPhone) return;
+
+    const created: User = {
+      id: `user-${Date.now()}`,
+      name: newUserName,
+      phone: newUserPhone,
+      balance: 0,
+      role: 'user',
+      level: newUserLevel,
+      verified: true,
+      deviceDetails: 'SM-G998B (Android 14)'
+    };
+
+    setUsers(prev => [...prev, created]);
+    setSelectedUserId(created.id);
+    setNewUserName('');
+    setNewUserPhone('');
+    setShowAddUserModal(false);
+    alert(`New Reseller Client "${newUserName}" created successfully!`);
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-900 flex flex-col">
+      
+      {/* PERSISTENT WORKSPACE CONTROL/SIMULATOR STRIP */}
+      <div className="bg-slate-950 border-b border-slate-800 text-slate-200 py-3 px-4 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-lg select-none">
+        
+        {/* Workspace info */}
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white font-black text-sm">
+            T
+          </div>
+          <div>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="font-extrabold text-sm text-white tracking-wider uppercase">{config.telecomName} Workspace Simulator</span>
+              <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-green-500/20 text-green-400 border border-green-500/30">REAL-TIME</span>
+              {isDbConnected === true ? (
+                <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-500/20 text-blue-400 border border-blue-500/30 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse"></span>
+                  SUPABASE CONNECTED
+                </span>
+              ) : isDbConnected === false ? (
+                <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center gap-1" title="Using local storage offline fallback. Double check credentials in .env.">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                  OFFLINE FALLBACK
+                </span>
+              ) : (
+                <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-500/20 text-slate-400 border border-slate-500/30 flex items-center gap-1 animate-pulse">
+                  CONNECTING...
+                </span>
+              )}
+            </div>
+            <p className="text-[10px] text-slate-400 font-medium">Instantly test the manual cash verification workflow and offer delivery logic.</p>
+          </div>
+        </div>
+
+        {/* Current Active Persona selection */}
+        <div className="flex flex-wrap items-center gap-2">
+          
+          {/* View Role switcher */}
+          <div className="flex bg-slate-900 border border-slate-800 p-1 rounded-lg">
+            <button
+              onClick={() => setCurrentView('user')}
+              className={`px-3 py-1.5 rounded-md text-xs font-bold flex items-center gap-1.5 transition ${
+                currentView === 'user' 
+                  ? 'bg-blue-600 text-white shadow-sm' 
+                  : 'text-slate-400 hover:text-slate-200 cursor-pointer'
+              }`}
+            >
+              <SmartphoneIcon className="w-3.5 h-3.5" />
+              <span>User Screen</span>
+            </button>
+            <button
+              onClick={() => setCurrentView('admin')}
+              className={`px-3 py-1.5 rounded-md text-xs font-bold flex items-center gap-1.5 transition ${
+                currentView === 'admin' 
+                  ? 'bg-red-600 text-white shadow-sm' 
+                  : 'text-slate-400 hover:text-slate-200 cursor-pointer'
+              }`}
+            >
+              <Shield className="w-3.5 h-3.5" />
+              <span>Admin Console</span>
+            </button>
+          </div>
+
+          {/* User selector (visible only on User View screen) */}
+          {currentView === 'user' && (
+            <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-800 p-1 rounded-lg">
+              <span className="text-[10px] font-bold uppercase text-slate-400 px-2">Simulate Client:</span>
+              <select
+                value={selectedUserId}
+                onChange={(e) => setSelectedUserId(e.target.value)}
+                className="bg-slate-950 text-xs font-bold text-slate-200 border-none rounded-md p-1 focus:outline-none"
+              >
+                {users.filter(u => u.role === 'user').map(u => (
+                  <option key={u.id} value={u.id}>
+                    {u.name} (Tk {u.balance})
+                  </option>
+                ))}
+              </select>
+              
+              <button
+                onClick={() => setShowAddUserModal(true)}
+                className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-md transition hover:text-white cursor-pointer"
+                title="Add New Reseller Client"
+              >
+                <Plus className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+
+          {/* Reset button */}
+          <button
+            onClick={handleResetData}
+            className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition hover:text-white cursor-pointer flex items-center gap-1.5 text-xs font-bold"
+            title="Reset Catalog to Defaults"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Reset</span>
+          </button>
+        </div>
+
+      </div>
+
+      {/* RENDER ACTIVE SCREEN */}
+      <div className="flex-1">
+        {currentView === 'user' ? (
+          <div className="py-6 flex flex-col items-center">
+            {/* Interactive workflow hint banner */}
+            <div className="w-full max-w-md bg-blue-500/10 border border-blue-500/20 rounded-2xl p-3.5 mb-4 text-xs text-blue-300">
+              <span className="font-extrabold block text-blue-200 text-xs uppercase mb-1">💡 Manual Flow testing guide:</span>
+              <p className="leading-relaxed">
+                1. Click <strong>Add Balance</strong> inside phone frame, select <strong>bKash</strong>, input amount <strong>1000 Tk</strong>, Sender, TxID, and submit.<br />
+                2. Switch top selector to <strong>Admin Console</strong>.<br />
+                3. Go to <strong>Add Money Approvals</strong> tab and click <strong>Approve</strong>.<br />
+                4. Switch back to <strong>User Screen</strong> to see the funds instantly updated in {activeUser.name}'s wallet!
+              </p>
+            </div>
+
+            <UserApp
+              user={activeUser}
+              offers={offers}
+              balanceRequests={balanceRequests}
+              orders={orders}
+              config={config}
+              onSubmitBalanceRequest={handleSubmitBalanceRequest}
+              onSubmitOrder={handleSubmitOrder}
+              users={users}
+              isLoggedIn={isLoggedIn}
+              setIsLoggedIn={setIsLoggedIn}
+              onRegisterUser={handleRegisterUser}
+              onUpdateUser={handleUpdateUser}
+              selectedUserId={selectedUserId}
+              setSelectedUserId={setSelectedUserId}
+              currentView={currentView}
+              setCurrentView={setCurrentView}
+            />
+          </div>
+        ) : (
+          <AdminPanel
+            users={users}
+            offers={offers}
+            balanceRequests={balanceRequests}
+            orders={orders}
+            config={config}
+            onApproveBalance={handleApproveBalance}
+            onRejectBalance={handleRejectBalance}
+            onAddOffer={handleAddOffer}
+            onDeleteOffer={handleDeleteOffer}
+            onToggleOfferStatus={handleToggleOfferStatus}
+            onCompleteOrder={handleCompleteOrder}
+            onCancelOrder={handleCancelOrder}
+            onUpdateConfig={handleUpdateConfig}
+            onUpdateUser={handleUpdateUser}
+          />
+        )}
+      </div>
+
+      {/* ADD NEW USER MODAL MODAL */}
+      {showAddUserModal && (
+        <div className="fixed inset-0 bg-black/75 flex items-center justify-center p-4 z-50">
+          <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 w-full max-w-sm space-y-4 shadow-2xl">
+            <h3 className="text-sm font-bold text-white uppercase tracking-wider">Create New Reseller Client</h3>
+            <p className="text-xs text-slate-400">Instantly register a brand new reseller client to test independent client balances and order dispatch records.</p>
+
+            <form onSubmit={handleCreateUser} className="space-y-4">
+              <div>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Full Client Name *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Rahim Miah"
+                  value={newUserName}
+                  onChange={(e) => setNewUserName(e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Reseller Mobile Line *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. 01822-111000"
+                  value={newUserPhone}
+                  onChange={(e) => setNewUserPhone(e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-white font-mono focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Reseller Clearance Level</label>
+                <select
+                  value={newUserLevel}
+                  onChange={(e) => setNewUserLevel(e.target.value as any)}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-blue-500"
+                >
+                  <option value="Distributor">Distributor</option>
+                  <option value="Dealer">Dealer</option>
+                  <option value="Retailer">Retailer</option>
+                </select>
+              </div>
+
+              <div className="flex gap-2 pt-2 justify-end">
+                <button
+                  type="button"
+                  onClick={() => setShowAddUserModal(false)}
+                  className="px-3 py-1.5 bg-slate-700 hover:bg-slate-650 text-slate-300 hover:text-white rounded-lg text-xs font-bold cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold cursor-pointer"
+                >
+                  Create Client
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Persistent global notice/footer */}
+      <footer className="bg-slate-950 border-t border-slate-800 text-center py-4 text-[11px] text-slate-500">
+        <p>© 2026 {config.telecomName} Platform • Designed for hybrid Android APK conversion.</p>
+      </footer>
+    </div>
+  );
+}
