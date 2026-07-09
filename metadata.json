@@ -1,6 +1,0 @@
-{
-  "name": "Bayzid Telecom",
-  "description": "A high-fidelity Bangladeshi telecom offer sales and dynamic administration platform, complete with manual payment approvals (bKash/Nagad/Rocket), operator package listings, dynamic search filters, and an admin panel dashboard.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}
