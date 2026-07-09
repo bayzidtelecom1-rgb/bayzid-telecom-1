@@ -470,13 +470,13 @@ export default function UserApp({
   };
 
   return (
-    <div className="bg-slate-950 min-h-screen flex flex-col select-none w-full">
+    <div className="bg-slate-950 min-h-screen flex flex-col items-center justify-center select-none w-full md:p-6">
       
-      {/* Full screen ERP Container */}
-      <div className="w-full flex-1 flex flex-col relative font-sans">
+      {/* Container: Full screen on mobile, elegant centered smartphone frame on desktop */}
+      <div className="w-full flex-1 md:flex-none md:max-w-md md:h-[860px] md:rounded-[40px] md:border-[12px] md:border-slate-800 md:shadow-2xl md:relative md:overflow-hidden bg-white flex flex-col font-sans transition-all duration-300">
 
         {!isLoggedIn ? (
-          <div className="flex-1 bg-slate-950 flex flex-col items-center justify-center text-white px-4 py-8 overflow-y-auto select-none min-h-screen">
+          <div className="flex-1 bg-slate-950 flex flex-col items-center justify-center text-white px-4 py-8 overflow-y-auto select-none w-full h-full">
             {/* Logo and Header */}
             <div className="flex flex-col items-center mb-6 text-center">
               <div className="w-16 h-16 rounded-full bg-yellow-500 flex items-center justify-center p-1 border-2 border-yellow-400 shadow-xl shadow-yellow-900/20 mb-3 animate-pulse">
