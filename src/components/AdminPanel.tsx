@@ -61,7 +61,7 @@ export default function AdminPanel({
   onUpdateUser,
   onLogout,
 }: AdminPanelProps) {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'approvals' | 'offers' | 'orders' | 'settings'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'approvals' | 'offers' | 'orders' | 'settings'>('dashboard');
   const [searchQuery, setSearchQuery] = useState('');
   
   // Offer Form state
@@ -261,6 +261,7 @@ export default function AdminPanel({
         <div className="flex flex-wrap gap-2 items-center w-full md:w-auto">
           {[
             { id: 'dashboard', label: 'Overview', icon: TrendingUp },
+            { id: 'users', label: 'Users/Resellers (রিসেলার তালিকা)', icon: Users },
             { id: 'approvals', label: `Add Money Approvals (${pendingApprovalsCount})`, icon: CreditCard, alert: pendingApprovalsCount > 0 },
             { id: 'orders', label: `Pending Orders (${pendingOrdersCount})`, icon: Smartphone, alert: pendingOrdersCount > 0 },
             { id: 'offers', label: 'Manage Packs', icon: PlusCircle },
@@ -702,6 +703,291 @@ export default function AdminPanel({
                   <p className="text-xs text-slate-300 mt-2">
                     Once you finish editing, the built files in the `dist` directory can be easily converted into a hybrid Android APK (using Apache Cordova or Capacitor WebViews) which your reseller clients can install directly on their phones!
                   </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB: USERS LIST (রিসেলার তালিকা) */}
+        {activeTab === 'users' && (
+          <div className="space-y-6">
+            {/* Top Cards/Chart */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="bg-slate-800/80 border border-slate-700/50 rounded-xl p-5 flex items-center justify-between shadow-lg">
+                <div>
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Reseller Users (মোট ইউজার)</p>
+                  <h3 className="text-3xl font-black text-white mt-1">
+                    {users.filter(u => u.role === 'user').length} <span className="text-sm font-normal text-slate-400">Clients</span>
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-2">Active registered clients using the telecom platform</p>
+                </div>
+                <div className="p-3 bg-blue-500/10 rounded-xl text-blue-400 border border-blue-500/20">
+                  <Users className="w-8 h-8" />
+                </div>
+              </div>
+
+              <div className="bg-slate-800/80 border border-slate-700/50 rounded-xl p-5 flex items-center justify-between shadow-lg">
+                <div>
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Grand Total Balance (মোট ব্যালেন্স)</p>
+                  <h3 className="text-3xl font-black text-emerald-400 mt-1">
+                    {totalBalance.toLocaleString()} <span className="text-lg font-bold">Tk</span>
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-2">Sum of all current user capital balances in system</p>
+                </div>
+                <div className="p-3 bg-emerald-500/10 rounded-xl text-emerald-400 border border-emerald-500/20">
+                  <DollarSign className="w-8 h-8" />
+                </div>
+              </div>
+            </div>
+
+            {/* Users table card */}
+            <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-6 space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-lg font-bold text-white">All Reseller Accounts Directory</h2>
+                  <p className="text-xs text-slate-400 font-sans">View balances, edit permissions, change PINs, passwords and update credits instantly.</p>
+                </div>
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Search client by name or phone..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="bg-slate-900 border border-slate-700 text-xs text-white rounded-lg pl-9 pr-4 py-2 w-full sm:w-64 focus:outline-none focus:border-blue-500"
+                  />
+                  <Search className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
+                </div>
+              </div>
+
+              {/* Responsive layout for users list */}
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse hidden md:table">
+                  <thead>
+                    <tr className="border-b border-slate-700 text-slate-400 font-semibold uppercase tracking-wider bg-slate-850">
+                      <th className="py-3 px-4">User Name</th>
+                      <th className="py-3 px-4">Mobile Number</th>
+                      <th className="py-3 px-4">Level</th>
+                      <th className="py-3 px-4">Balance (Tk)</th>
+                      <th className="py-3 px-4">Password / PIN</th>
+                      <th className="py-3 px-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-700/40">
+                    {users
+                      .filter(u => u.role === 'user')
+                      .filter(u => {
+                        if (!searchQuery) return true;
+                        const q = searchQuery.toLowerCase();
+                        return u.name.toLowerCase().includes(q) || u.phone.toLowerCase().includes(q);
+                      })
+                      .map(user => {
+                        const isEditing = editingUserId === user.id;
+                        return (
+                          <tr key={user.id} className="hover:bg-slate-750 transition duration-150">
+                            {isEditing ? (
+                              <td colSpan={6} className="py-4 px-4 bg-slate-800/40">
+                                <div className="space-y-3 max-w-4xl animate-fade-in text-xs">
+                                  <div className="flex justify-between items-center border-b border-slate-700/60 pb-1.5 mb-2">
+                                    <span className="font-bold text-yellow-400">Editing Account: {user.name} ({user.phone})</span>
+                                  </div>
+                                  <div className="grid grid-cols-4 gap-4">
+                                    <div>
+                                      <label className="block text-[10px] text-slate-400 mb-1 uppercase font-bold">Balance (Tk)</label>
+                                      <input
+                                        type="number"
+                                        value={editBalance}
+                                        onChange={(e) => setEditBalance(e.target.value)}
+                                        className="w-full bg-slate-900 border border-slate-750 rounded-lg p-2 text-white font-mono focus:outline-none focus:border-blue-500"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="block text-[10px] text-slate-400 mb-1 uppercase font-bold">Reseller Level</label>
+                                      <select
+                                        value={editLevel}
+                                        onChange={(e) => setEditLevel(e.target.value as any)}
+                                        className="w-full bg-slate-900 border border-slate-750 rounded-lg p-2 text-white focus:outline-none focus:border-blue-500"
+                                      >
+                                        <option value="Distributor">Distributor (ডিস্ট্রিবিউটর)</option>
+                                        <option value="Dealer">Dealer (ডিলার)</option>
+                                        <option value="Retailer">Retailer (রিটেইলার)</option>
+                                      </select>
+                                    </div>
+                                    <div>
+                                      <label className="block text-[10px] text-slate-400 mb-1 uppercase font-bold">Password</label>
+                                      <input
+                                        type="text"
+                                        value={editPassword}
+                                        onChange={(e) => setEditPassword(e.target.value)}
+                                        className="w-full bg-slate-900 border border-slate-750 rounded-lg p-2 text-white font-mono focus:outline-none focus:border-blue-500"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="block text-[10px] text-slate-400 mb-1 uppercase font-bold">PIN Code</label>
+                                      <input
+                                        type="text"
+                                        maxLength={4}
+                                        value={editPin}
+                                        onChange={(e) => setEditPin(e.target.value)}
+                                        className="w-full bg-slate-900 border border-slate-750 rounded-lg p-2 text-white font-mono focus:outline-none focus:border-blue-500"
+                                      />
+                                    </div>
+                                  </div>
+                                  <div className="flex gap-2 justify-end pt-2">
+                                    <button
+                                      onClick={() => setEditingUserId(null)}
+                                      className="px-4 py-2 bg-slate-750 hover:bg-slate-700 text-white rounded-lg text-xs font-bold transition cursor-pointer"
+                                    >
+                                      Cancel
+                                    </button>
+                                    <button
+                                      onClick={() => handleSaveUserEdit(user.id)}
+                                      className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold transition cursor-pointer"
+                                    >
+                                      Save Account Changes
+                                    </button>
+                                  </div>
+                                </div>
+                              </td>
+                            ) : (
+                              <>
+                                <td className="py-3 px-4 font-bold text-white">{user.name}</td>
+                                <td className="py-3 px-4 font-mono text-slate-300">{user.phone}</td>
+                                <td className="py-3 px-4">
+                                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-700 text-slate-300">
+                                    {user.level}
+                                  </span>
+                                </td>
+                                <td className="py-3 px-4 font-black text-emerald-400 text-sm">{user.balance} Tk</td>
+                                <td className="py-3 px-4 text-slate-400 space-x-3">
+                                  <span>Pw: <strong className="font-mono text-slate-200">{user.password || '123456'}</strong></span>
+                                  <span>PIN: <strong className="font-mono text-slate-200">{user.pin || '1234'}</strong></span>
+                                </td>
+                                <td className="py-3 px-4 text-right">
+                                  <button
+                                    onClick={() => handleStartEditUser(user)}
+                                    className="px-2.5 py-1 bg-slate-700 hover:bg-blue-600 hover:text-white rounded text-[11px] font-bold text-slate-200 transition cursor-pointer"
+                                  >
+                                    Edit Account
+                                  </button>
+                                </td>
+                              </>
+                            )}
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                </table>
+
+                {/* Mobile Grid View */}
+                <div className="grid grid-cols-1 gap-4 md:hidden">
+                  {users
+                    .filter(u => u.role === 'user')
+                    .filter(u => {
+                      if (!searchQuery) return true;
+                      const q = searchQuery.toLowerCase();
+                      return u.name.toLowerCase().includes(q) || u.phone.toLowerCase().includes(q);
+                    })
+                    .map(user => {
+                      const isEditing = editingUserId === user.id;
+                      return (
+                        <div key={user.id} className="p-4 bg-slate-850 border border-slate-750 rounded-xl space-y-3">
+                          {isEditing ? (
+                            <div className="space-y-3 text-xs">
+                              <div className="border-b border-slate-700 pb-1.5">
+                                <span className="font-bold text-yellow-400">Editing: {user.name}</span>
+                              </div>
+                              <div className="space-y-2.5">
+                                <div>
+                                  <label className="block text-[10px] text-slate-400 mb-0.5 uppercase font-bold">Balance (Tk)</label>
+                                  <input
+                                    type="number"
+                                    value={editBalance}
+                                    onChange={(e) => setEditBalance(e.target.value)}
+                                    className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white font-mono focus:outline-none"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-[10px] text-slate-400 mb-0.5 uppercase font-bold">Level</label>
+                                  <select
+                                    value={editLevel}
+                                    onChange={(e) => setEditLevel(e.target.value as any)}
+                                    className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white focus:outline-none"
+                                  >
+                                    <option value="Distributor">Distributor</option>
+                                    <option value="Dealer">Dealer</option>
+                                    <option value="Retailer">Retailer</option>
+                                  </select>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                  <div>
+                                    <label className="block text-[10px] text-slate-400 mb-0.5 uppercase font-bold">Password</label>
+                                    <input
+                                      type="text"
+                                      value={editPassword}
+                                      onChange={(e) => setEditPassword(e.target.value)}
+                                      className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white font-mono focus:outline-none"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-[10px] text-slate-400 mb-0.5 uppercase font-bold">PIN</label>
+                                    <input
+                                      type="text"
+                                      maxLength={4}
+                                      value={editPin}
+                                      onChange={(e) => setEditPin(e.target.value)}
+                                      className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white font-mono focus:outline-none"
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="flex gap-2 justify-end pt-1">
+                                <button
+                                  onClick={() => setEditingUserId(null)}
+                                  className="px-3 py-1.5 bg-slate-750 hover:bg-slate-700 text-white rounded-lg text-xs font-bold transition cursor-pointer"
+                                >
+                                  Cancel
+                                </button>
+                                <button
+                                  onClick={() => handleSaveUserEdit(user.id)}
+                                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold transition cursor-pointer"
+                                >
+                                  Save
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="space-y-2">
+                              <div className="flex justify-between items-start">
+                                <div>
+                                  <h4 className="font-bold text-white text-sm">{user.name}</h4>
+                                  <p className="text-xs text-slate-400 font-mono mt-0.5">{user.phone}</p>
+                                </div>
+                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-700 text-slate-300">
+                                  {user.level}
+                                </span>
+                              </div>
+                              
+                              <div className="flex justify-between items-center border-t border-slate-800 pt-2 text-xs">
+                                <div className="space-y-0.5">
+                                  <p className="text-slate-400">Password: <span className="font-mono text-white">{user.password || '123456'}</span></p>
+                                  <p className="text-slate-400">PIN: <span className="font-mono text-white">{user.pin || '1234'}</span></p>
+                                </div>
+                                <div className="text-right">
+                                  <span className="text-sm font-black text-emerald-400 block">{user.balance} Tk</span>
+                                  <button
+                                    onClick={() => handleStartEditUser(user)}
+                                    className="px-2.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-[10px] font-bold mt-1.5 transition cursor-pointer"
+                                  >
+                                    Edit Account
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                 </div>
               </div>
             </div>
