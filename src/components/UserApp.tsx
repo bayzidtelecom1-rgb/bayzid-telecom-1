@@ -1580,7 +1580,7 @@ export default function UserApp({
                   <span>v2.1 (Production)</span>
                 </div>
                 <button
-                  onClick={() => { setIsLoggedIn(false); setIsSidebarOpen(false); }}
+                  onClick={() => { setIsLoggedIn(false); setSelectedUserId(''); setIsSidebarOpen(false); }}
                   className="w-full py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
                 >
                   <LogOut className="w-3.5 h-3.5" />
