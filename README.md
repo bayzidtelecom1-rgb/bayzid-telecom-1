@@ -1,20 +1,43 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# Bayzid Telecom
 
-# Run and deploy your AI Studio app
+একটি বাংলাদেশি টেলিকম অফার সেলস ও ম্যানেজমেন্ট প্ল্যাটফর্ম — bKash/Nagad/Rocket দিয়ে ম্যানুয়াল ব্যালেন্স যোগ করা, অপারেটর প্যাকেজ কেনা, এবং একটি সম্পূর্ণ অ্যাডমিন ড্যাশবোর্ড সহ।
 
-This contains everything you need to run your app locally.
+React + Vite + Tailwind CSS + Supabase দিয়ে তৈরি। রিয়েল লগইন/রেজিস্ট্রেশন সিস্টেম আছে, তাই সরাসরি প্রোডাকশনে ব্যবহারযোগ্য।
 
-View your app in AI Studio: https://ai.studio/apps/5ef66788-62af-4ae6-a4bb-26e1a41773ed
+## লোকাল ডেভেলপমেন্ট
 
-## Run Locally
+**প্রয়োজনীয়তা:** Node.js (v18+)
 
-**Prerequisites:**  Node.js
+```bash
+npm install
+npm run dev
+```
 
+`http://localhost:3000` এ ওপেন হবে।
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+### ডেমো লগইন
+
+| রোল | ফোন/ইমেইল | পাসওয়ার্ড |
+|---|---|---|
+| ইউজার (Karim) | 01723-999888 | 123456 |
+| ইউজার (Johurul) | 01854-321098 | 123456 |
+| অ্যাডমিন | bayzidtelecom1@gmail.com | Bayzid@#2023 |
+
+নতুন ইউজাররা সাইটের ভেতর থেকেই রেজিস্ট্রেশন ফর্ম দিয়ে সাইন আপ করতে পারবে।
+
+## Supabase কনফিগারেশন (ঐচ্ছিক)
+
+অ্যাপটি একটি ডিফল্ট Supabase প্রজেক্টের সাথে যুক্ত এবং সেটআপ ছাড়াই কাজ করে। নিজের Supabase প্রজেক্ট ব্যবহার করতে চাইলে `.env.example` কপি করে `.env.local` বানিয়ে নিজের URL ও Anon Key বসান, এবং `supabase_schema.sql` ফাইলটি আপনার Supabase SQL Editor-এ রান করুন।
+
+## GitHub Pages-এ ডিপ্লয়
+
+এই রিপোতে `.github/workflows/deploy.yml` যুক্ত আছে যেটা `main` ব্রাঞ্চে পুশ করলেই অটোমেটিক বিল্ড করে GitHub Pages-এ পাবলিশ করে দেবে।
+
+**একবারের জন্য সেটআপ:**
+1. GitHub রিপোর **Settings → Pages** এ যান
+2. "Build and deployment" এর Source-এ **GitHub Actions** সিলেক্ট করুন
+3. `main` ব্রাঞ্চে পুশ করুন — কয়েক মিনিটের মধ্যে সাইট লাইভ হয়ে যাবে
+
+সাইট লাইভ হবে: `https://<your-username>.github.io/<repo-name>/`
+
+মোবাইল থেকে লিংকটি ওপেন করলে এটি একটি রেসপন্সিভ, রিয়েল ওয়েবসাইটের মতোই দেখাবে — এবং চাইলে "Add to Home Screen" করে নিলে অ্যাপের মতো আইকন সহ ওপেন হবে।
