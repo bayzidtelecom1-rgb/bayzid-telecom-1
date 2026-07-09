@@ -20,7 +20,7 @@ import {
   DollarSign,
   Volume2,
   VolumeX,
- Bell,
+  Bell,
   BellRing,
   LogOut
 } from 'lucide-react';
@@ -40,7 +40,7 @@ interface AdminPanelProps {
   onCompleteOrder: (id: string) => void;
   onCancelOrder: (id: string) => void;
   onUpdateConfig: (newConfig: AppConfig) => void;
- onUpdateUser?: (userId: string, fields: Partial<User>) => void;
+  onUpdateUser?: (userId: string, fields: Partial<User>) => void;
   onLogout?: () => void;
 }
 
@@ -58,7 +58,7 @@ export default function AdminPanel({
   onCompleteOrder,
   onCancelOrder,
   onUpdateConfig,
- onUpdateUser,
+  onUpdateUser,
   onLogout,
 }: AdminPanelProps) {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'approvals' | 'offers' | 'orders' | 'settings'>('dashboard');
@@ -258,17 +258,7 @@ export default function AdminPanel({
         </div>
         
         {/* Admin Navigation */}
-        <div className="flex flex-wrap items-center gap-2">
-          {onLogout && (
-            <button
-              onClick={onLogout}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300 hover:bg-red-600 hover:text-white transition-all duration-200 cursor-pointer"
-              title="Log out of Admin Console"
-            >
-              <LogOut className="w-4 h-4" />
-              <span>Logout</span>
-            </button>
-          )}
+        <div className="flex flex-wrap gap-2 items-center w-full md:w-auto">
           {[
             { id: 'dashboard', label: 'Overview', icon: TrendingUp },
             { id: 'approvals', label: `Add Money Approvals (${pendingApprovalsCount})`, icon: CreditCard, alert: pendingApprovalsCount > 0 },
@@ -297,6 +287,17 @@ export default function AdminPanel({
               </button>
             );
           })}
+
+          {onLogout && (
+            <button
+              onClick={onLogout}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold bg-red-600 hover:bg-red-500 text-white shadow-lg shadow-red-900/30 transition-all duration-200 cursor-pointer md:ml-4"
+              title="Exit Admin Panel"
+            >
+              <LogOut className="w-4 h-4" />
+              <span>Log Out</span>
+            </button>
+          )}
         </div>
       </div>
 

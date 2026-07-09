@@ -9,7 +9,8 @@ import {
 import { User, Offer, BalanceRequest, OfferOrder, AppConfig } from './types';
 import UserApp from './components/UserApp';
 import AdminPanel from './components/AdminPanel';
-import { supabase } from './lib/supabase';
+import { Shield, Sparkles, Smartphone, LogOut, CheckCircle, SmartphoneIcon, User as UserIcon, Settings, Plus, RotateCcw } from 'lucide-react';
+import { supabase, isSupabaseConfigured } from './lib/supabase';
 import {
   fetchAppSettings,
   updateAppSettings,
@@ -56,29 +57,10 @@ export default function App() {
     return saved ? JSON.parse(saved) : INITIAL_ORDERS;
   });
 
-  // Session state — restores a logged-in session across page refreshes,
-  // but starts logged-out for anyone visiting the site for the first time.
-  const [selectedUserId, setSelectedUserId] = useState<string>(() => {
-    return localStorage.getItem('bayzid_telecom_session_user') || '';
-  });
-  const [currentView, setCurrentView] = useState<'user' | 'admin'>(() => {
-    return (localStorage.getItem('bayzid_telecom_session_view') as 'user' | 'admin') || 'user';
-  });
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
-    return !!localStorage.getItem('bayzid_telecom_session_user');
-  });
+  const [selectedUserId, setSelectedUserId] = useState<string>('user-karim');
+  const [currentView, setCurrentView] = useState<'user' | 'admin'>('user');
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
   const [isDbConnected, setIsDbConnected] = useState<boolean | null>(null);
-
-  // Persist the session so a page refresh (or reopening the site) keeps the user logged in
-  useEffect(() => {
-    if (isLoggedIn && selectedUserId) {
-      localStorage.setItem('bayzid_telecom_session_user', selectedUserId);
-      localStorage.setItem('bayzid_telecom_session_view', currentView);
-    } else {
-      localStorage.removeItem('bayzid_telecom_session_user');
-      localStorage.removeItem('bayzid_telecom_session_view');
-    }
-  }, [isLoggedIn, selectedUserId, currentView]);
 
   // Load and synchronize data with Supabase in real-time
   const loadAllData = async () => {
@@ -151,6 +133,12 @@ export default function App() {
     }
   };
 
+  // New demo user creation form modal state
+  const [showAddUserModal, setShowAddUserModal] = useState(false);
+  const [newUserName, setNewUserName] = useState('');
+  const [newUserPhone, setNewUserPhone] = useState('');
+  const [newUserLevel, setNewUserLevel] = useState<'Distributor' | 'Dealer' | 'Retailer'>('Dealer');
+
   // Save changes to localStorage whenever state changes as secondary offline cache
   useEffect(() => {
     localStorage.setItem('bayzid_telecom_config', JSON.stringify(config));
@@ -172,22 +160,16 @@ export default function App() {
     localStorage.setItem('bayzid_telecom_orders', JSON.stringify(orders));
   }, [orders]);
 
-  // Currently logged-in user (or a harmless placeholder while logged out)
-  const activeUser = users.find(u => u.id === selectedUserId) || {
+  // Find currently simulated user details
+  const activeUser = users.find(u => u.id === selectedUserId) || users[0] || {
     id: 'guest',
     name: 'Guest',
-    phone: '',
+    phone: '01700000000',
     balance: 0,
-    role: 'user' as const,
-    level: 'Retailer' as const,
-    verified: false,
+    role: 'user',
+    level: 'Retailer',
+    verified: true,
     deviceDetails: 'Web Browser'
-  };
-
-  const handleLogout = () => {
-    setIsLoggedIn(false);
-    setSelectedUserId('');
-    setCurrentView('user');
   };
 
   // Callback: User submits manual cash balance request
@@ -372,10 +354,76 @@ export default function App() {
     }
   };
 
+  // Reset simulator to defaults
+  const handleResetData = () => {
+    if (confirm('Are you sure you want to reset all data back to the original demo values?')) {
+      localStorage.removeItem('bayzid_telecom_config');
+      localStorage.removeItem('bayzid_telecom_users_v2');
+      localStorage.removeItem('bayzid_telecom_offers');
+      localStorage.removeItem('bayzid_telecom_balance_requests');
+      localStorage.removeItem('bayzid_telecom_orders');
+      
+      setConfig(INITIAL_CONFIG);
+      setUsers(INITIAL_USERS);
+      setOffers(INITIAL_OFFERS);
+      setBalanceRequests(INITIAL_BALANCE_REQUESTS);
+      setOrders(INITIAL_ORDERS);
+      setSelectedUserId(INITIAL_USERS[0].id);
+      setCurrentView('user');
+      alert('Data reset to defaults successfully.');
+    }
+  };
+
+  const handleCreateUser = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newUserName || !newUserPhone) return;
+
+    const created: User = {
+      id: `user-${Date.now()}`,
+      name: newUserName,
+      phone: newUserPhone,
+      balance: 0,
+      role: 'user',
+      level: newUserLevel,
+      verified: true,
+      deviceDetails: 'SM-G998B (Android 14)'
+    };
+
+    setUsers(prev => [...prev, created]);
+    setSelectedUserId(created.id);
+    setNewUserName('');
+    setNewUserPhone('');
+    setShowAddUserModal(false);
+    alert(`New Reseller Client "${newUserName}" created successfully!`);
+  };
+
   return (
     <div className="min-h-screen bg-slate-900 flex flex-col">
+      
+      {/* RENDER ACTIVE SCREEN */}
       <div className="flex-1">
-        {currentView === 'admin' && isLoggedIn ? (
+        {currentView === 'user' ? (
+          <div className="w-full">
+            <UserApp
+              user={activeUser}
+              offers={offers}
+              balanceRequests={balanceRequests}
+              orders={orders}
+              config={config}
+              onSubmitBalanceRequest={handleSubmitBalanceRequest}
+              onSubmitOrder={handleSubmitOrder}
+              users={users}
+              isLoggedIn={isLoggedIn}
+              setIsLoggedIn={setIsLoggedIn}
+              onRegisterUser={handleRegisterUser}
+              onUpdateUser={handleUpdateUser}
+              selectedUserId={selectedUserId}
+              setSelectedUserId={setSelectedUserId}
+              currentView={currentView}
+              setCurrentView={setCurrentView}
+            />
+          </div>
+        ) : (
           <AdminPanel
             users={users}
             offers={offers}
@@ -391,29 +439,83 @@ export default function App() {
             onCancelOrder={handleCancelOrder}
             onUpdateConfig={handleUpdateConfig}
             onUpdateUser={handleUpdateUser}
-            onLogout={handleLogout}
-          />
-        ) : (
-          <UserApp
-            user={activeUser}
-            offers={offers}
-            balanceRequests={balanceRequests}
-            orders={orders}
-            config={config}
-            onSubmitBalanceRequest={handleSubmitBalanceRequest}
-            onSubmitOrder={handleSubmitOrder}
-            users={users}
-            isLoggedIn={isLoggedIn}
-            setIsLoggedIn={setIsLoggedIn}
-            onRegisterUser={handleRegisterUser}
-            onUpdateUser={handleUpdateUser}
-            selectedUserId={selectedUserId}
-            setSelectedUserId={setSelectedUserId}
-            currentView={currentView}
-            setCurrentView={setCurrentView}
+            onLogout={() => {
+              setIsLoggedIn(false);
+              setCurrentView('user');
+            }}
           />
         )}
       </div>
+
+      {/* ADD NEW USER MODAL MODAL */}
+      {showAddUserModal && (
+        <div className="fixed inset-0 bg-black/75 flex items-center justify-center p-4 z-50">
+          <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 w-full max-w-sm space-y-4 shadow-2xl">
+            <h3 className="text-sm font-bold text-white uppercase tracking-wider">Create New Reseller Client</h3>
+            <p className="text-xs text-slate-400">Instantly register a brand new reseller client to test independent client balances and order dispatch records.</p>
+
+            <form onSubmit={handleCreateUser} className="space-y-4">
+              <div>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Full Client Name *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Rahim Miah"
+                  value={newUserName}
+                  onChange={(e) => setNewUserName(e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Reseller Mobile Line *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. 01822-111000"
+                  value={newUserPhone}
+                  onChange={(e) => setNewUserPhone(e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-white font-mono focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Reseller Clearance Level</label>
+                <select
+                  value={newUserLevel}
+                  onChange={(e) => setNewUserLevel(e.target.value as any)}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-blue-500"
+                >
+                  <option value="Distributor">Distributor</option>
+                  <option value="Dealer">Dealer</option>
+                  <option value="Retailer">Retailer</option>
+                </select>
+              </div>
+
+              <div className="flex gap-2 pt-2 justify-end">
+                <button
+                  type="button"
+                  onClick={() => setShowAddUserModal(false)}
+                  className="px-3 py-1.5 bg-slate-700 hover:bg-slate-650 text-slate-300 hover:text-white rounded-lg text-xs font-bold cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold cursor-pointer"
+                >
+                  Create Client
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Persistent global notice/footer */}
+      <footer className="bg-slate-950 border-t border-slate-800 text-center py-4 text-[11px] text-slate-500">
+        <p>© 2026 {config.telecomName} Platform • Designed for hybrid Android APK conversion.</p>
+      </footer>
     </div>
   );
 }
