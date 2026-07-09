@@ -20,8 +20,9 @@ import {
   DollarSign,
   Volume2,
   VolumeX,
-  Bell,
-  BellRing
+ Bell,
+  BellRing,
+  LogOut
 } from 'lucide-react';
 import { User, Offer, BalanceRequest, OfferOrder, AppConfig, OperatorName } from '../types';
 
@@ -39,7 +40,8 @@ interface AdminPanelProps {
   onCompleteOrder: (id: string) => void;
   onCancelOrder: (id: string) => void;
   onUpdateConfig: (newConfig: AppConfig) => void;
-  onUpdateUser?: (userId: string, fields: Partial<User>) => void;
+ onUpdateUser?: (userId: string, fields: Partial<User>) => void;
+  onLogout?: () => void;
 }
 
 export default function AdminPanel({
@@ -56,7 +58,8 @@ export default function AdminPanel({
   onCompleteOrder,
   onCancelOrder,
   onUpdateConfig,
-  onUpdateUser,
+ onUpdateUser,
+  onLogout,
 }: AdminPanelProps) {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'approvals' | 'offers' | 'orders' | 'settings'>('dashboard');
   const [searchQuery, setSearchQuery] = useState('');
@@ -255,7 +258,17 @@ export default function AdminPanel({
         </div>
         
         {/* Admin Navigation */}
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {onLogout && (
+            <button
+              onClick={onLogout}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300 hover:bg-red-600 hover:text-white transition-all duration-200 cursor-pointer"
+              title="Log out of Admin Console"
+            >
+              <LogOut className="w-4 h-4" />
+              <span>Logout</span>
+            </button>
+          )}
           {[
             { id: 'dashboard', label: 'Overview', icon: TrendingUp },
             { id: 'approvals', label: `Add Money Approvals (${pendingApprovalsCount})`, icon: CreditCard, alert: pendingApprovalsCount > 0 },
