@@ -20,6 +20,7 @@ import {
   deleteDriveOffer,
   fetchUsersProfiles,
   updateUserProfile,
+  createUserProfile,
   fetchDeposits,
   createDepositRequest,
   approveDepositRequest,
@@ -27,7 +28,11 @@ import {
   fetchOrders,
   purchaseOfferRPC,
   completeOrder,
-  cancelAndRefundOrderRPC
+  cancelAndRefundOrderRPC,
+  adminCreateUser,
+  deleteAllOrders,
+  deleteAllDeposits,
+  deleteAllUsersExceptAdmin
 } from './lib/supabaseService';
 
 export default function App() {
@@ -57,7 +62,7 @@ export default function App() {
     return saved ? JSON.parse(saved) : INITIAL_ORDERS;
   });
 
-  const [selectedUserId, setSelectedUserId] = useState<string>('admin-telecom');
+  const [selectedUserId, setSelectedUserId] = useState<string>('00000000-0000-0000-0000-000000000000');
   const [currentView, setCurrentView] = useState<'user' | 'admin'>('user');
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
   const [isDbConnected, setIsDbConnected] = useState<boolean | null>(null);
@@ -125,6 +130,17 @@ export default function App() {
   };
 
   useEffect(() => {
+    // One-time cleanup of local storage demo data to satisfy the user's purge request
+    const hasCleaned = localStorage.getItem('bayzid_telecom_demo_cleaned_v7');
+    if (!hasCleaned) {
+      localStorage.removeItem('bayzid_telecom_orders');
+      localStorage.removeItem('bayzid_telecom_balance_requests');
+      localStorage.removeItem('bayzid_telecom_users_v2');
+      localStorage.setItem('bayzid_telecom_demo_cleaned_v7', 'true');
+      window.location.reload();
+      return;
+    }
+
     loadAllData();
 
     // Subscribe to real-time events on Supabase
@@ -142,12 +158,18 @@ export default function App() {
     };
   }, []);
 
-  const handleRegisterUser = (newUser: User) => {
+  const handleRegisterUser = async (newUser: User) => {
     setUsers(prev => {
       const updated = [...prev, newUser];
       localStorage.setItem('bayzid_telecom_users_v2', JSON.stringify(updated));
       return updated;
     });
+
+    try {
+      await createUserProfile(newUser);
+    } catch (err) {
+      console.warn('Could not save user profile to database (Supabase not connected)', err);
+    }
   };
 
   const handleUpdateUser = async (userId: string, updatedFields: Partial<User>) => {
@@ -404,27 +426,45 @@ export default function App() {
     }
   };
 
-  const handleCreateUser = (e: React.FormEvent) => {
+  const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newUserName || !newUserPhone) return;
 
-    const created: User = {
-      id: `user-${Date.now()}`,
+    const defaultPass = '123456';
+    const defaultPin = '1234';
+
+    const createdLocal: User = {
+      id: `temp-${Date.now()}`,
       name: newUserName,
       phone: newUserPhone,
       balance: 0,
       role: 'user',
       level: newUserLevel,
       verified: true,
-      deviceDetails: 'SM-G998B (Android 14)'
+      deviceDetails: 'Registered Device',
+      password: defaultPass,
+      pin: defaultPin
     };
 
-    setUsers(prev => [...prev, created]);
-    setSelectedUserId(created.id);
+    // Optimistic update
+    setUsers(prev => [...prev, createdLocal]);
     setNewUserName('');
     setNewUserPhone('');
     setShowAddUserModal(false);
-    alert(`New Reseller Client "${newUserName}" created successfully!`);
+
+    try {
+      const createdUser = await adminCreateUser(newUserName, newUserPhone, newUserLevel, defaultPass, defaultPin);
+      if (createdUser) {
+        setSelectedUserId(createdUser.id);
+        alert(`New Reseller Client "${newUserName}" created successfully in Supabase Database!`);
+        loadAllData();
+      } else {
+        alert(`New Reseller Client "${newUserName}" created locally.`);
+      }
+    } catch (err) {
+      console.warn('Error in handleCreateUser remote create:', err);
+      alert(`New Reseller Client "${newUserName}" created locally.`);
+    }
   };
 
   return (
@@ -472,6 +512,39 @@ export default function App() {
             onLogout={() => {
               setIsLoggedIn(false);
               setCurrentView('user');
+            }}
+             onDeleteAllOrders={async () => {
+              const success = await deleteAllOrders();
+              if (success) {
+                setOrders([]);
+                localStorage.removeItem('bayzid_telecom_orders');
+                await loadAllData();
+                alert('All order data has been permanently deleted from Database and Local Cache!');
+              } else {
+                alert('Could not delete orders from database (Supabase offline/error).');
+              }
+            }}
+            onDeleteAllDeposits={async () => {
+              const success = await deleteAllDeposits();
+              if (success) {
+                setBalanceRequests([]);
+                localStorage.removeItem('bayzid_telecom_balance_requests');
+                await loadAllData();
+                alert('All deposit request data has been permanently deleted from Database and Local Cache!');
+              } else {
+                alert('Could not delete deposit requests from database (Supabase offline/error).');
+              }
+            }}
+            onDeleteAllUsers={async () => {
+              const success = await deleteAllUsersExceptAdmin();
+              if (success) {
+                setUsers(prev => prev.filter(u => u.role === 'admin'));
+                localStorage.removeItem('bayzid_telecom_users_v2');
+                await loadAllData();
+                alert('All reseller users (except Admin) have been permanently deleted from Database and Local Cache!');
+              } else {
+                alert('Could not delete reseller users from database (Supabase offline/error).');
+              }
             }}
           />
         )}

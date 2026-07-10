@@ -176,11 +176,37 @@ export default function UserApp({
 
     // 1. HARDCODED ADMIN CREDENTIALS ROUTING (USER DIRECTIVE)
     if (loginPhone.toLowerCase().trim() === 'bayzidtelecom1@gmail.com' && loginPassword === 'Bayzid@#2023') {
-      // Find or create admin user in list
-      const adminUser = users.find(u => u.phone === 'bayzidtelecom1@gmail.com' || u.role === 'admin');
-      if (adminUser) {
-        setSelectedUserId(adminUser.id);
+      try {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: 'bayzidtelecom1@gmail.com',
+          password: 'Bayzid@#2023',
+        });
+        
+        if (!error && data.user) {
+          console.log('Admin signed in successfully to Supabase Auth!');
+          setSelectedUserId(data.user.id);
+        } else {
+          // If the admin user doesn't exist in Supabase auth yet, attempt to sign up!
+          const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+            email: 'bayzidtelecom1@gmail.com',
+            password: 'Bayzid@#2023',
+            options: {
+              data: {
+                password: 'Bayzid@#2023',
+              }
+            }
+          });
+          if (!signUpError && signUpData.user) {
+            console.log('Admin registered successfully in Supabase Auth!');
+            setSelectedUserId(signUpData.user.id);
+          } else {
+            console.warn('Could not register Admin in Supabase Auth:', signUpError?.message);
+          }
+        }
+      } catch (err) {
+        console.warn('Supabase Admin auth sync failed:', err);
       }
+
       setIsLoggedIn(true);
       setLoginPhone('');
       setLoginPassword('');
@@ -193,7 +219,21 @@ export default function UserApp({
 
     try {
       // 2. SUPABASE AUTH ATTEMPT
-      const email = loginPhone.includes('@') ? loginPhone : `${loginPhone}@bayzidtelecom.com`;
+      const cleanPhone = loginPhone.replace(/[^0-9]/g, '');
+      let email = loginPhone.includes('@') ? loginPhone : `${cleanPhone}@bayzidtelecom.com`;
+
+      // Search profile first if it has a custom name prefix in the email
+      if (!loginPhone.includes('@')) {
+        const { data: matchedProfiles } = await supabase
+          .from('users_profile')
+          .select('email')
+          .ilike('email', `%_${cleanPhone}@bayzidtelecom.com`);
+
+        if (matchedProfiles && matchedProfiles.length > 0) {
+          email = matchedProfiles[0].email;
+        }
+      }
+
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password: loginPassword,
@@ -271,7 +311,7 @@ export default function UserApp({
 
     // 1. SUPABASE AUTH REGISTER ATTEMPT
     try {
-      const email = `${cleanPhone}@bayzidtelecom.com`;
+      const email = `${regName}_${cleanPhone}@bayzidtelecom.com`;
       const { data, error } = await supabase.auth.signUp({
         email,
         password: regPassword,
@@ -283,7 +323,16 @@ export default function UserApp({
       });
 
       if (!error && data.user) {
-        // Success: Trigger creates user_profile in Supabase.
+        // Update profile with name prefix password, pin, level
+        await supabase
+          .from('users_profile')
+          .update({
+            password: `${regName} - ${regPassword}`,
+            pin: regPin,
+            level: regLevel
+          })
+          .eq('id', data.user.id);
+
         // Let's create user locally too to keep things synced
         const newUser: User = {
           id: data.user.id,
@@ -321,8 +370,14 @@ export default function UserApp({
     }
 
     // 2. FALLBACK LOCAL REGISTRATION
+    const randomUUID = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+      const r = Math.random() * 16 | 0;
+      const v = c === 'x' ? r : (r & 0x3 | 0x8);
+      return v.toString(16);
+    });
+
     const newUser: User = {
-      id: `user-${Date.now()}`,
+      id: randomUUID,
       name: regName,
       phone: regPhone,
       balance: 0,

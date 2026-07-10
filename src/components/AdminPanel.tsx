@@ -42,6 +42,9 @@ interface AdminPanelProps {
   onUpdateConfig: (newConfig: AppConfig) => void;
   onUpdateUser?: (userId: string, fields: Partial<User>) => void;
   onLogout?: () => void;
+  onDeleteAllOrders?: () => void;
+  onDeleteAllDeposits?: () => void;
+  onDeleteAllUsers?: () => void;
 }
 
 export default function AdminPanel({
@@ -60,6 +63,9 @@ export default function AdminPanel({
   onUpdateConfig,
   onUpdateUser,
   onLogout,
+  onDeleteAllOrders,
+  onDeleteAllDeposits,
+  onDeleteAllUsers,
 }: AdminPanelProps) {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'approvals' | 'offers' | 'orders' | 'settings'>('dashboard');
   const [searchQuery, setSearchQuery] = useState('');
@@ -231,10 +237,10 @@ export default function AdminPanel({
     alert('Offer added successfully!');
   };
 
-  const handleUpdateConfigSubmit = (e: React.FormEvent) => {
+  const handleUpdateConfigSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onUpdateConfig(tempConfig);
-    alert('Telecom configuration updated successfully!');
+    await onUpdateConfig(tempConfig);
+    alert('Telecom configuration updated successfully! Both local state and database are updated.');
   };
 
   const operatorColors: Record<OperatorName, string> = {
@@ -1533,6 +1539,67 @@ export default function AdminPanel({
                 </button>
               </div>
             </form>
+
+            {/* DANGER ZONE / DATABASE MAINTENANCE */}
+            <div className="mt-8 pt-6 border-t border-red-900/40 space-y-4">
+              <div>
+                <h3 className="text-sm font-black uppercase text-red-500 flex items-center gap-1.5">
+                  <ShieldAlert className="w-4 h-4 text-red-500" />
+                  Danger Zone / Database Maintenance
+                </h3>
+                <p className="text-[11px] text-slate-400 mt-0.5">Use these operations to permanently delete demo or obsolete data. Deletion is irreversible.</p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {/* Delete Orders Button */}
+                <div className="p-3 bg-red-950/20 border border-red-900/30 rounded-xl space-y-2 text-center">
+                  <h4 className="text-xs font-extrabold text-slate-200">Delete All Orders</h4>
+                  <p className="text-[10px] text-slate-400 leading-tight">Clears all historical and pending orders from the database.</p>
+                  <button
+                    onClick={() => {
+                      if (confirm('⚠️ WARNING: Are you absolutely sure you want to delete ALL orders? This will wipe the order list completely and cannot be undone!')) {
+                        onDeleteAllOrders?.();
+                      }
+                    }}
+                    className="w-full py-1.5 bg-red-600/20 hover:bg-red-600 hover:text-white border border-red-500/30 text-red-400 text-[10px] font-bold rounded-lg transition cursor-pointer"
+                  >
+                    Wipe Orders
+                  </button>
+                </div>
+
+                {/* Delete Deposits Button */}
+                <div className="p-3 bg-red-950/20 border border-red-900/30 rounded-xl space-y-2 text-center">
+                  <h4 className="text-xs font-extrabold text-slate-200">Delete All Deposits</h4>
+                  <p className="text-[10px] text-slate-400 leading-tight">Wipes all add money/deposit request history from the database.</p>
+                  <button
+                    onClick={() => {
+                      if (confirm('⚠️ WARNING: Are you absolutely sure you want to delete ALL deposit requests? This cannot be undone!')) {
+                        onDeleteAllDeposits?.();
+                      }
+                    }}
+                    className="w-full py-1.5 bg-red-600/20 hover:bg-red-600 hover:text-white border border-red-500/30 text-red-400 text-[10px] font-bold rounded-lg transition cursor-pointer"
+                  >
+                    Wipe Deposits
+                  </button>
+                </div>
+
+                {/* Delete Users Button */}
+                <div className="p-3 bg-red-950/20 border border-red-900/30 rounded-xl space-y-2 text-center">
+                  <h4 className="text-xs font-extrabold text-slate-200">Delete All Users</h4>
+                  <p className="text-[10px] text-slate-400 leading-tight">Removes all registered reseller clients (except Admin).</p>
+                  <button
+                    onClick={() => {
+                      if (confirm('⚠️ WARNING: Are you absolutely sure you want to delete ALL reseller users? Their profiles and balances will be lost!')) {
+                        onDeleteAllUsers?.();
+                      }
+                    }}
+                    className="w-full py-1.5 bg-red-600/20 hover:bg-red-600 hover:text-white border border-red-500/30 text-red-400 text-[10px] font-bold rounded-lg transition cursor-pointer"
+                  >
+                    Wipe Users
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 

@@ -157,20 +157,34 @@ export async function fetchUsersProfiles(): Promise<User[] | null> {
     const { data, error } = await supabase.from('users_profile').select('*');
     if (error) throw error;
 
-    return (data || []).map(row => ({
-      id: row.id,
-      name: row.email.split('@')[0], // Construct a nice nickname
-      phone: row.email,
-      balance: Number(row.balance) || 0,
-      role: row.role as 'user' | 'admin',
-      level: row.level as 'Distributor' | 'Dealer' | 'Retailer',
-      verified: row.status === 'Active',
-      deviceDetails: 'Registered Device',
-      password: row.password || 'Bayzid@#2023',
-      pin: row.pin || '1234',
-      deviceLocked: false,
-      twoStepEnabled: true,
-    }));
+    return (data || []).map(row => {
+      const emailLocalPart = row.email.split('@')[0];
+      
+      // Parse name from password field if it contains " - "
+      let name = emailLocalPart;
+      let password = row.password || 'Bayzid@#2023';
+      
+      if (row.password && row.password.includes(' - ')) {
+        const parts = row.password.split(' - ');
+        name = parts[0];
+        password = parts.slice(1).join(' - ');
+      }
+
+      return {
+        id: row.id,
+        name: name,
+        phone: emailLocalPart,
+        balance: Number(row.balance) || 0,
+        role: row.role as 'user' | 'admin',
+        level: row.level as 'Distributor' | 'Dealer' | 'Retailer',
+        verified: row.status === 'Active',
+        deviceDetails: 'Registered Device',
+        password: password,
+        pin: row.pin || '1234',
+        deviceLocked: false,
+        twoStepEnabled: true,
+      };
+    });
   } catch (err) {
     console.warn('Error fetching reseller profiles:', err);
     return null;
@@ -182,7 +196,16 @@ export async function updateUserProfile(userId: string, fields: Partial<User>): 
     const payload: any = {};
     if (fields.balance !== undefined) payload.balance = fields.balance;
     if (fields.level) payload.level = fields.level;
-    if (fields.password) payload.password = fields.password;
+    if (fields.password) {
+      // If updating password, make sure to preserve Name if possible
+      const { data: existing } = await supabase.from('users_profile').select('password').eq('id', userId).single();
+      if (existing && existing.password && existing.password.includes(' - ')) {
+        const name = existing.password.split(' - ')[0];
+        payload.password = `${name} - ${fields.password}`;
+      } else {
+        payload.password = fields.password;
+      }
+    }
     if (fields.pin) payload.pin = fields.pin;
     if (fields.verified !== undefined) payload.status = fields.verified ? 'Active' : 'Suspended';
 
@@ -191,6 +214,26 @@ export async function updateUserProfile(userId: string, fields: Partial<User>): 
     return true;
   } catch (err) {
     console.warn('Error updating user profile:', err);
+    return false;
+  }
+}
+
+export async function createUserProfile(user: User): Promise<boolean> {
+  try {
+    const { error } = await supabase.from('users_profile').insert({
+      id: user.id,
+      email: user.phone.includes('@') ? user.phone : `${user.phone.replace(/[^0-9]/g, '')}@bayzidtelecom.com`,
+      balance: user.balance || 0,
+      role: user.role || 'user',
+      level: user.level || 'Retailer',
+      status: 'Active',
+      password: `${user.name} - ${user.password || '123456'}`,
+      pin: user.pin || '1234',
+    });
+    if (error) throw error;
+    return true;
+  } catch (err) {
+    console.warn('Error creating user profile in Supabase:', err);
     return false;
   }
 }
@@ -351,5 +394,107 @@ export async function cancelAndRefundOrderRPC(orderId: string, refundAmount: num
   } catch (err) {
     console.warn('Error executing order refund RPC:', err);
     return false;
+  }
+}
+
+// 5. Database Reset & Maintenance Operations (Admin Settings Panel)
+export async function deleteAllOrders(): Promise<boolean> {
+  try {
+    const { error } = await supabase.from('orders').delete().neq('id', 'placeholder-uuid-non-existent');
+    if (error) throw error;
+    return true;
+  } catch (err) {
+    console.warn('Error deleting all orders:', err);
+    return false;
+  }
+}
+
+export async function deleteAllDeposits(): Promise<boolean> {
+  try {
+    const { error } = await supabase.from('deposits').delete().neq('id', 'placeholder-uuid-non-existent');
+    if (error) throw error;
+    return true;
+  } catch (err) {
+    console.warn('Error deleting all deposits:', err);
+    return false;
+  }
+}
+
+export async function deleteAllUsersExceptAdmin(): Promise<boolean> {
+  try {
+    // We cannot delete from auth.users directly via client client, 
+    // but we can delete from users_profile where role != 'admin'
+    const { error } = await supabase.from('users_profile').delete().neq('role', 'admin');
+    if (error) throw error;
+    return true;
+  } catch (err) {
+    console.warn('Error deleting all users except admin:', err);
+    return false;
+  }
+}
+
+export async function adminCreateUser(
+  name: string,
+  phone: string,
+  level: string,
+  password?: string,
+  pin?: string
+): Promise<User | null> {
+  try {
+    const cleanPhone = phone.replace(/[^0-9]/g, '');
+    const email = `${cleanPhone}@bayzidtelecom.com`;
+    const userPass = password || '123456';
+    const userPin = pin || '1234';
+
+    // 1. Sign up the new user (this might switch the active session temporarily)
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password: userPass,
+    });
+
+    if (error) throw error;
+
+    if (data.user) {
+      // 2. Sign the admin back in immediately to restore admin session!
+      await supabase.auth.signInWithPassword({
+        email: 'bayzidtelecom1@gmail.com',
+        password: 'Bayzid@#2023',
+      });
+
+      // 3. Update the new user's profile with correct details (Admin has bypass permissions)
+      const { error: updateErr } = await supabase
+        .from('users_profile')
+        .update({
+          level: level,
+          pin: userPin,
+          password: `${name} - ${userPass}`,
+        })
+        .eq('id', data.user.id);
+
+      if (updateErr) {
+        console.warn('Error updating profile with name/level:', updateErr);
+      }
+
+      return {
+        id: data.user.id,
+        name: name,
+        phone: cleanPhone,
+        balance: 0,
+        role: 'user',
+        level: level as 'Distributor' | 'Dealer' | 'Retailer',
+        verified: true,
+        deviceDetails: 'Registered by Admin',
+        password: userPass,
+        pin: userPin,
+        deviceLocked: false,
+        twoStepEnabled: false,
+        apiKey: `dt_live_${Math.random().toString(36).substring(2, 16)}`,
+        language: 'English'
+      };
+    }
+    return null;
+  } catch (err) {
+    console.warn('Error in adminCreateUser:', err);
+    return null;
   }
 }

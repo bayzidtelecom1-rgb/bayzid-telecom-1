@@ -2,9 +2,9 @@ import { User, Offer, BalanceRequest, OfferOrder, AppConfig } from './types';
 
 export const INITIAL_CONFIG: AppConfig = {
   telecomName: 'Bayzid Telecom',
-  bkashNumber: '01601-202721',
-  nagadNumber: '01601-202721',
-  rocketNumber: '01601-202721',
+  bkashNumber: '01601202721',
+  nagadNumber: '01601202721',
+  rocketNumber: '01601202721',
   supportTelegram: 'https://t.me/bayzidtelecom_bd',
   supportWhatsapp: 'https://wa.me/8801601202721',
   supportFacebook: 'https://facebook.com/bayzidtelecom',
@@ -14,7 +14,7 @@ export const INITIAL_CONFIG: AppConfig = {
 
 export const INITIAL_USERS: User[] = [
   {
-    id: 'admin-telecom',
+    id: '00000000-0000-0000-0000-000000000000',
     name: 'Bayzid Admin',
     phone: 'bayzidtelecom1@gmail.com',
     balance: 99999,
@@ -33,7 +33,7 @@ export const INITIAL_USERS: User[] = [
 
 export const INITIAL_OFFERS: Offer[] = [
   {
-    id: 'offer-1',
+    id: '10000000-0000-0000-0000-000000000001',
     operator: 'Robi',
     title: '10GB Data + 300 Min (Drive Pack)',
     description: '১০ জিবি ইন্টারনেট ও ৩০০ মিনিট টকটাইম। শুধু রবি গ্রাহকদের জন্য প্রযোজ্য।',
@@ -44,7 +44,7 @@ export const INITIAL_OFFERS: Offer[] = [
     isActive: true
   },
   {
-    id: 'offer-2',
+    id: '10000000-0000-0000-0000-000000000002',
     operator: 'GP',
     title: '30GB Internet (Regular Pack)',
     description: '৩০ জিবি সুপারস্পিড ৪জি ইন্টারনেট। যেকোনো জিপি নাম্বারে দেওয়া যাবে।',
@@ -55,7 +55,7 @@ export const INITIAL_OFFERS: Offer[] = [
     isActive: true
   },
   {
-    id: 'offer-3',
+    id: '10000000-0000-0000-0000-000000000003',
     operator: 'Airtel',
     title: '500 Min Talktime',
     description: '৫০০ মিনিট যেকোনো লোকাল নাম্বারে। মেয়াদ ৩০ দিন।',
@@ -66,7 +66,7 @@ export const INITIAL_OFFERS: Offer[] = [
     isActive: true
   },
   {
-    id: 'offer-4',
+    id: '10000000-0000-0000-0000-000000000004',
     operator: 'Banglalink',
     title: '15GB Internet + 400 Min',
     description: '১৫ জিবি ইন্টারনেট + ৪০০ মিনিট টকটাইম। স্পেশাল বাংলালিংক ড্রাইভ অফার।',
@@ -77,7 +77,7 @@ export const INITIAL_OFFERS: Offer[] = [
     isActive: true
   },
   {
-    id: 'offer-5',
+    id: '10000000-0000-0000-0000-000000000005',
     operator: 'Teletalk',
     title: '5GB Data + 150 Min',
     description: '৫ জিবি ইন্টারনেট ও ১৫০ মিনিট টকটাইম। সরকারি মেগা নেটওয়ার্ক।',
@@ -88,7 +88,7 @@ export const INITIAL_OFFERS: Offer[] = [
     isActive: true
   },
   {
-    id: 'offer-6',
+    id: '10000000-0000-0000-0000-000000000006',
     operator: 'Robi',
     title: '1GB/Day (Robi Recharge)',
     description: 'প্রতিদিন ১ জিবি ইন্টারনেট। সর্বমোট ৩০ জিবি ইন্টারনেট ৩০ দিনে।',
@@ -99,7 +99,7 @@ export const INITIAL_OFFERS: Offer[] = [
     isActive: true
   },
   {
-    id: 'offer-7',
+    id: '10000000-0000-0000-0000-000000000007',
     operator: 'GP',
     title: '800 Minutes Talktime',
     description: '৮০০ মিনিট যেকোনো লোকাল অপারেটরে। মেয়াদ ৩০ দিন।',
@@ -110,7 +110,7 @@ export const INITIAL_OFFERS: Offer[] = [
     isActive: true
   },
   {
-    id: 'offer-8',
+    id: '10000000-0000-0000-0000-000000000008',
     operator: 'Banglalink',
     title: '40GB Data (Non-Stop)',
     description: '৪০ জিবি ফুল স্পিড ইন্টারনেট। স্পেশাল ডিল।',
