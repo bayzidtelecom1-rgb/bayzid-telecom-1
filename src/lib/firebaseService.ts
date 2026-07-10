@@ -444,14 +444,25 @@ export async function purchaseOfferRPC(
         throw new Error('Insufficient balance');
       }
 
-      const offerRef = doc(db, 'offers', offerId);
-      const offerSnap = await transaction.get(offerRef);
+      let offerTitle = 'Drive Pack';
+      let operator = 'GP';
 
-      if (!offerSnap.exists()) {
-        throw new Error('Offer not found');
+      if (offerId.startsWith('recharge_')) {
+        const opFromId = offerId.split('_')[1] || 'GP';
+        operator = opFromId;
+        offerTitle = `Flexiload ${price} Tk`;
+      } else {
+        const offerRef = doc(db, 'offers', offerId);
+        const offerSnap = await transaction.get(offerRef);
+
+        if (!offerSnap.exists()) {
+          throw new Error('Offer not found');
+        }
+
+        const offerData = offerSnap.data();
+        offerTitle = offerData.title || 'Drive Pack';
+        operator = offerData.operator || 'GP';
       }
-
-      const offerData = offerSnap.data();
 
       transaction.update(userRef, { balance: userBalance - price });
 
@@ -460,8 +471,8 @@ export async function purchaseOfferRPC(
         userId,
         userName: userSnap.data().name || 'Reseller',
         offerId,
-        offerTitle: offerData.title || 'Drive Pack',
-        operator: offerData.operator || 'GP',
+        offerTitle,
+        operator,
         offerPrice: price,
         targetPhone: targetNumber,
         status: 'Pending',

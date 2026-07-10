@@ -116,6 +116,79 @@ export default function UserApp({
   const [targetNumber, setTargetNumber] = useState('');
   const [buyError, setBuyError] = useState('');
 
+  // Service Sub-mode (Drive Offer vs direct Recharge)
+  const [homeSubMode, setHomeSubMode] = useState<'menu' | 'drive' | 'recharge'>('menu');
+
+  // Recharge Form States
+  const [rechargePhone, setRechargePhone] = useState('');
+  const [rechargeOperator, setRechargeOperator] = useState<OperatorName>('GP');
+  const [rechargeAmount, setRechargeAmount] = useState('');
+  const [rechargeType, setRechargeType] = useState<'Prepaid' | 'Postpaid' | 'Skitto'>('Prepaid');
+  const [rechargePin, setRechargePin] = useState('');
+  const [rechargeError, setRechargeError] = useState('');
+  const [rechargeSuccess, setRechargeSuccess] = useState(false);
+
+  // Auto-detect operator based on mobile number prefix
+  useEffect(() => {
+    const clean = rechargePhone.replace(/[^0-9]/g, '');
+    if (clean.length >= 3) {
+      const prefix = clean.substring(0, 3);
+      if (prefix === '017' || prefix === '013') {
+        setRechargeOperator('GP');
+      } else if (prefix === '018') {
+        setRechargeOperator('Robi');
+      } else if (prefix === '016') {
+        setRechargeOperator('Airtel');
+      } else if (prefix === '019' || prefix === '014') {
+        setRechargeOperator('Banglalink');
+      } else if (prefix === '015') {
+        setRechargeOperator('Teletalk');
+      }
+    }
+  }, [rechargePhone]);
+
+  const handleRechargeSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setRechargeError('');
+    setRechargeSuccess(false);
+
+    const cleanNum = rechargePhone.replace(/[^0-9]/g, '');
+    if (cleanNum.length < 11) {
+      setRechargeError('অনুগ্রহ করে সঠিক ১১ ডিজিটের মোবাইল নম্বর লিখুন!');
+      return;
+    }
+
+    const amountNum = Number(rechargeAmount);
+    if (isNaN(amountNum) || amountNum <= 0) {
+      setRechargeError('অনুগ্রহ করে সঠিক রিচার্জের পরিমাণ লিখুন!');
+      return;
+    }
+
+    if (user.balance < amountNum) {
+      setRechargeError('আপনার একাউন্টে পর্যাপ্ত ব্যালেন্স নেই!');
+      return;
+    }
+
+    if (rechargePin !== user.pin) {
+      setRechargeError('ভুল পিন নম্বর! অনুগ্রহ করে সঠিক পিন নম্বর দিন।');
+      return;
+    }
+
+    onSubmitOrder({
+      offerId: `recharge_${rechargeOperator}`,
+      offerTitle: `Flexiload ${amountNum} Tk (${rechargeType})`,
+      operator: rechargeOperator,
+      offerPrice: amountNum,
+      targetPhone: cleanNum
+    });
+
+    setRechargeSuccess(true);
+    setRechargePhone('');
+    setRechargeAmount('');
+    setRechargePin('');
+    alert('রিচার্জের অনুরোধটি সফলভাবে সাবমিট হয়েছে!');
+  };
+
   // Derived state: filtered offers
   const filteredOffers = offers.filter(offer => {
     if (selectedOperator !== 'All' && offer.operator !== selectedOperator) {
@@ -384,14 +457,15 @@ export default function UserApp({
     setSelectedOfferForBuy(null);
     setTargetNumber('');
     setBuyError('');
-    alert('অফার সফলভাবষিত হয়বার করা হয়ইছব!');
+    alert('অফারটি সফলভাবে সাবমিট করা হয়েছে!');
+    setHomeSubMode('drive');
   };
 
   return (
     <div className="bg-slate-950 min-h-screen flex flex-col items-center justify-center select-none w-full md:p-6">
       
       {/* Container: Full screen on mobile, elegant centered smartphone frame on desktop */}
-      <div className="w-full flex-1 md:flex-none md:max-w-md md:h-[860px] md:rounded-[40px] md:border-[12px] md:border-slate-800 md:shadow-2xl md:relative md:overflow-hidden bg-white flex flex-col font-sans transition-all duration-300">
+      <div className="w-full h-screen max-h-screen md:h-[860px] relative overflow-hidden md:max-w-md md:rounded-[40px] md:border-[12px] md:border-slate-800 md:shadow-2xl bg-white flex flex-col font-sans transition-all duration-300">
 
         {!isLoggedIn ? (
           <div className="flex-1 bg-slate-950 flex flex-col items-center justify-center text-white px-4 py-8 overflow-y-auto select-none w-full h-full">
@@ -622,252 +696,512 @@ export default function UserApp({
           {activeScreen === 'home' && (
             <div className="p-3 space-y-4">
               
-              {/* Profile welcome bar */}
-              <div className="bg-white rounded-2xl p-3 shadow-sm border border-slate-100 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center border-2 border-blue-500 overflow-hidden text-slate-700 font-black">
-                    {user.name[0]}
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-1">
-                      <p className="text-xs text-slate-400">Welcome back!</p>
-                      <span className="text-[10px] bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded-full font-bold">
-                        {user.level}
-                      </span>
+              {homeSubMode === 'menu' && (
+                <>
+                  {/* Profile welcome bar */}
+                  <div className="bg-white rounded-2xl p-3 shadow-sm border border-slate-100 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center border-2 border-blue-500 overflow-hidden text-slate-700 font-black">
+                        {user.name[0]}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-1">
+                          <p className="text-xs text-slate-400">Welcome back!</p>
+                          <span className="text-[10px] bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded-full font-bold">
+                            {user.level}
+                          </span>
+                        </div>
+                        <h2 className="text-sm font-bold text-slate-800 flex items-center gap-1">
+                          {user.name}
+                          <CheckCircle className="w-3.5 h-3.5 text-emerald-500 fill-emerald-500 text-white" />
+                        </h2>
+                      </div>
                     </div>
-                    <h2 className="text-sm font-bold text-slate-800 flex items-center gap-1">
-                      {user.name}
-                      <CheckCircle className="w-3.5 h-3.5 text-emerald-500 fill-emerald-500 text-white" />
-                    </h2>
-                  </div>
-                </div>
 
-                <div className="text-right">
-                  <p className="text-[9px] text-slate-400 uppercase font-bold tracking-wider">Account Balance</p>
-                  
-                  {/* Tapping indicator bKash layout */}
-                  <button
-                    onClick={handleTapBalance}
-                    className={`relative overflow-hidden mt-1 px-4 py-1.5 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all duration-300 shadow-md flex items-center justify-center gap-1.5 cursor-pointer min-w-[120px] ${
-                      isTapping ? 'scale-95' : ''
-                    }`}
-                  >
-                    {showBalance ? (
-                      <span className="font-extrabold animate-fade-in text-slate-50">{user.balance.toFixed(2)} Tk</span>
-                    ) : (
-                      <span className="font-extrabold flex items-center gap-1 animate-pulse">
-                        <span className="text-[14px]">🔘</span> Tap for balance
-                      </span>
-                    )}
-                  </button>
-                </div>
-              </div>
-
-              {/* Grid links section */}
-              <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100">
-                <h3 className="text-xs font-black uppercase tracking-wider text-slate-400 mb-3">Quick Actions</h3>
-                <div className="grid grid-cols-4 gap-4 text-center">
-                  
-                  <button 
-                    onClick={() => setActiveScreen('recharge')}
-                    className="flex flex-col items-center gap-1.5 hover:scale-105 transition cursor-pointer"
-                  >
-                    <div className="w-11 h-11 rounded-full bg-sky-100 text-blue-600 flex items-center justify-center shadow-inner">
-                      <Send className="w-5 h-5" />
-                    </div>
-                    <span className="text-[10px] font-bold text-slate-700">Add Balance</span>
-                  </button>
-
-                  <a 
-                    href={config.supportTelegram} 
-                    target="_blank" 
-                    rel="noreferrer"
-                    className="flex flex-col items-center gap-1.5 hover:scale-105 transition"
-                  >
-                    <div className="w-11 h-11 rounded-full bg-blue-100 text-blue-500 flex items-center justify-center shadow-inner">
-                      <MessageCircle className="w-5 h-5" />
-                    </div>
-                    <span className="text-[10px] font-bold text-slate-700">Telegram</span>
-                  </a>
-
-                  <a 
-                    href={config.supportWhatsapp} 
-                    target="_blank" 
-                    rel="noreferrer"
-                    className="flex flex-col items-center gap-1.5 hover:scale-105 transition"
-                  >
-                    <div className="w-11 h-11 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shadow-inner">
-                      <PhoneCall className="w-5 h-5" />
-                    </div>
-                    <span className="text-[10px] font-bold text-slate-700">WhatsApp</span>
-                  </a>
-
-                  <button 
-                    onClick={() => setActiveScreen('profile')}
-                    className="flex flex-col items-center gap-1.5 hover:scale-105 transition cursor-pointer"
-                  >
-                    <div className="w-11 h-11 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center shadow-inner">
-                      <UserIcon className="w-5 h-5" />
-                    </div>
-                    <span className="text-[10px] font-bold text-slate-700">My Profile</span>
-                  </button>
-
-                </div>
-
-                <div className="grid grid-cols-2 gap-2 mt-4 pt-4 border-t border-slate-100">
-                  <a 
-                    href={config.supportFacebook} 
-                    target="_blank" 
-                    rel="noreferrer"
-                    className="flex items-center justify-center gap-2 py-2 bg-slate-50 rounded-xl hover:bg-slate-100 transition border border-slate-100 text-xs font-bold text-slate-700"
-                  >
-                    <span className="text-blue-600">📘</span> Facebook Page
-                  </a>
-                  <a 
-                    href={config.supportYoutube} 
-                    target="_blank" 
-                    rel="noreferrer"
-                    className="flex items-center justify-center gap-2 py-2 bg-slate-50 rounded-xl hover:bg-slate-100 transition border border-slate-100 text-xs font-bold text-slate-700"
-                  >
-                    <span className="text-red-500">🔴</span> YouTube Channel
-                  </a>
-                </div>
-              </div>
-
-              {/* Dynamic Slides / Services banner */}
-              <div className="relative rounded-2xl overflow-hidden shadow-sm h-28 bg-gradient-to-r from-blue-700 to-sky-500 p-4 text-white flex flex-col justify-between">
-                <div>
-                  <span className="px-2 py-0.5 rounded bg-red-500 text-[9px] font-black uppercase tracking-widest">Mega Offer</span>
-                  <h4 className="text-xs font-black mt-1 uppercase">সবচেয়ে কম মূল্যে ড্রাইভে সেরা ডিসকাউন্ট</h4>
-                  <p className="text-[9px] text-blue-100 mt-0.5">১০০% গ্যারান্টিড রিচার্জ ও ইনস্ট্যান্ট ডেলিভারি!</p>
-                </div>
-                <div className="flex justify-between items-center text-[10px] text-blue-200">
-                  <span>Support: 24/7 Available</span>
-                  <span className="font-extrabold bg-white/20 px-2 py-0.5 rounded-full text-white">Today Hot Deals 🔥</span>
-                </div>
-              </div>
-
-              {/* OPERATORS AND PACKS SECTION */}
-              <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <h3 className="text-xs font-black uppercase tracking-wider text-slate-400">Select Operators</h3>
-                  <span className="text-[10px] text-blue-600 font-bold hover:underline cursor-pointer" onClick={() => setSelectedOperator('All')}>Show All</span>
-                </div>
-
-                {/* Operator Selector Buttons */}
-                <div className="grid grid-cols-6 gap-1.5">
-                  {[
-                    { id: 'All', label: 'All', icon: '🌐' },
-                    { id: 'GP', label: 'GP', icon: '🔹' },
-                    { id: 'Robi', label: 'Robi', icon: '🛑' },
-                    { id: 'Airtel', label: 'Airtel', icon: '❤️' },
-                    { id: 'Banglalink', label: 'BL', icon: '🔸' },
-                    { id: 'Teletalk', label: 'Teletalk', icon: '🟢' },
-                  ].map(op => (
-                    <button
-                      key={op.id}
-                      onClick={() => setSelectedOperator(op.id as any)}
-                      className={`py-2 px-1 rounded-xl flex flex-col items-center justify-center gap-0.5 border text-center transition cursor-pointer hover:border-blue-400 ${
-                        selectedOperator === op.id 
-                          ? 'bg-blue-600 text-white border-blue-500 shadow-md font-bold' 
-                          : 'bg-white text-slate-700 border-slate-100 shadow-sm'
-                      }`}
-                    >
-                      <span className="text-sm select-none">{op.icon}</span>
-                      <span className="text-[10px] font-bold leading-none">{op.label}</span>
-                    </button>
-                  ))}
-                </div>
-
-                {/* Pack Type Tabs and Search bar */}
-                <div className="bg-white rounded-2xl p-3 shadow-sm border border-slate-100 space-y-3">
-                  <div className="flex gap-2 p-1 bg-slate-100 rounded-xl">
-                    {(['Drive Pack', 'Regular Pack'] as const).map(tab => (
+                    <div className="text-right">
+                      <p className="text-[9px] text-slate-400 uppercase font-bold tracking-wider">Account Balance</p>
+                      
+                      {/* Tapping indicator bKash layout */}
                       <button
-                        key={tab}
-                        onClick={() => setActiveTab(tab)}
-                        className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition cursor-pointer ${
-                          activeTab === tab 
-                            ? 'bg-blue-600 text-white shadow-sm' 
-                            : 'bg-transparent text-slate-500 hover:text-slate-800'
+                        onClick={handleTapBalance}
+                        className={`relative overflow-hidden mt-1 px-4 py-1.5 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all duration-300 shadow-md flex items-center justify-center gap-1.5 cursor-pointer min-w-[120px] ${
+                          isTapping ? 'scale-95' : ''
                         }`}
                       >
-                        {tab === 'Drive Pack' ? '🔥 ড্রাইভ প্যাক' : '⚡ রেগুলার প্যাক'}
+                        {showBalance ? (
+                          <span className="font-extrabold animate-fade-in text-slate-50">{user.balance.toFixed(2)} Tk</span>
+                        ) : (
+                          <span className="font-extrabold flex items-center gap-1 animate-pulse">
+                            <span className="text-[14px]">🔘</span> Tap for balance
+                          </span>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Grid links section */}
+                  <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100">
+                    <h3 className="text-xs font-black uppercase tracking-wider text-slate-400 mb-3">Quick Actions</h3>
+                    <div className="grid grid-cols-4 gap-4 text-center">
+                      
+                      <button 
+                        onClick={() => setActiveScreen('recharge')}
+                        className="flex flex-col items-center gap-1.5 hover:scale-105 transition cursor-pointer"
+                      >
+                        <div className="w-11 h-11 rounded-full bg-sky-100 text-blue-600 flex items-center justify-center shadow-inner">
+                          <Send className="w-5 h-5" />
+                        </div>
+                        <span className="text-[10px] font-bold text-slate-700">Add Balance</span>
+                      </button>
+
+                      <a 
+                        href={config.supportTelegram} 
+                        target="_blank" 
+                        rel="noreferrer"
+                        className="flex flex-col items-center gap-1.5 hover:scale-105 transition"
+                      >
+                        <div className="w-11 h-11 rounded-full bg-blue-100 text-blue-500 flex items-center justify-center shadow-inner">
+                          <MessageCircle className="w-5 h-5" />
+                        </div>
+                        <span className="text-[10px] font-bold text-slate-700">Telegram</span>
+                      </a>
+
+                      <a 
+                        href={config.supportWhatsapp} 
+                        target="_blank" 
+                        rel="noreferrer"
+                        className="flex flex-col items-center gap-1.5 hover:scale-105 transition"
+                      >
+                        <div className="w-11 h-11 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shadow-inner">
+                          <PhoneCall className="w-5 h-5" />
+                        </div>
+                        <span className="text-[10px] font-bold text-slate-700">WhatsApp</span>
+                      </a>
+
+                      <button 
+                        onClick={() => setActiveScreen('profile')}
+                        className="flex flex-col items-center gap-1.5 hover:scale-105 transition cursor-pointer"
+                      >
+                        <div className="w-11 h-11 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center shadow-inner">
+                          <UserIcon className="w-5 h-5" />
+                        </div>
+                        <span className="text-[10px] font-bold text-slate-700">My Profile</span>
+                      </button>
+
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 mt-4 pt-4 border-t border-slate-100">
+                      <a 
+                        href={config.supportFacebook} 
+                        target="_blank" 
+                        rel="noreferrer"
+                        className="flex items-center justify-center gap-2 py-2 bg-slate-50 rounded-xl hover:bg-slate-100 transition border border-slate-100 text-xs font-bold text-slate-700"
+                      >
+                        <span className="text-blue-600">📘</span> Facebook Page
+                      </a>
+                      <a 
+                        href={config.supportYoutube} 
+                        target="_blank" 
+                        rel="noreferrer"
+                        className="flex items-center justify-center gap-2 py-2 bg-slate-50 rounded-xl hover:bg-slate-100 transition border border-slate-100 text-xs font-bold text-slate-700"
+                      >
+                        <span className="text-red-500">🔴</span> YouTube Channel
+                      </a>
+                    </div>
+                  </div>
+
+                  {/* Dynamic Slides / Services banner */}
+                  <div className="relative rounded-2xl overflow-hidden shadow-sm h-28 bg-gradient-to-r from-blue-700 to-sky-500 p-4 text-white flex flex-col justify-between">
+                    <div>
+                      <span className="px-2 py-0.5 rounded bg-red-500 text-[9px] font-black uppercase tracking-widest">Mega Offer</span>
+                      <h4 className="text-xs font-black mt-1 uppercase">সবচেয়ে কম মূল্যে ড্রাইভে সেরা ডিসকাউন্ট</h4>
+                      <p className="text-[9px] text-blue-100 mt-0.5">১০০% গ্যারান্টিড রিচার্জ ও ইনস্ট্যান্ট ডেলিভারি!</p>
+                    </div>
+                    <div className="flex justify-between items-center text-[10px] text-blue-200">
+                      <span>Support: 24/7 Available</span>
+                      <span className="font-extrabold bg-white/20 px-2 py-0.5 rounded-full text-white">Today Hot Deals 🔥</span>
+                    </div>
+                  </div>
+
+                  {/* SERVICE CATEGORY BUTTONS */}
+                  <div className="space-y-3 pt-1">
+                    <h3 className="text-xs font-black uppercase tracking-wider text-slate-400">Our Services / আমাদের সেবাসমূহ</h3>
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        onClick={() => setHomeSubMode('drive')}
+                        className="p-4 bg-gradient-to-br from-amber-500 to-rose-600 rounded-2xl text-left text-white shadow-md hover:shadow-lg transition transform active:scale-95 flex flex-col justify-between h-32 cursor-pointer border border-transparent"
+                      >
+                        <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-xl shadow-inner">
+                          🔥
+                        </div>
+                        <div>
+                          <h4 className="font-extrabold text-xs tracking-wide">ড্রাইভ অফার</h4>
+                          <p className="text-[9px] text-amber-100 mt-0.5 leading-tight font-medium">আকর্ষণীয় ডিসকাউন্ট প্যাক</p>
+                        </div>
+                      </button>
+
+                      <button
+                        onClick={() => setHomeSubMode('recharge')}
+                        className="p-4 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-2xl text-left text-white shadow-md hover:shadow-lg transition transform active:scale-95 flex flex-col justify-between h-32 cursor-pointer border border-transparent"
+                      >
+                        <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-xl shadow-inner">
+                          📱
+                        </div>
+                        <div>
+                          <h4 className="font-extrabold text-xs tracking-wide">মোবাইল রিচার্জ</h4>
+                          <p className="text-[9px] text-blue-100 mt-0.5 leading-tight font-medium">ইনস্ট্যান্ট ফ্লেক্সিলোড করুন</p>
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {homeSubMode === 'drive' && (
+                <div className="space-y-3 animate-fade-in">
+                  
+                  {/* HEADER BAR WITH BACK BUTTON */}
+                  <div className="flex items-center gap-3 bg-white p-3.5 rounded-2xl border border-slate-100 shadow-sm">
+                    <button
+                      onClick={() => setHomeSubMode('menu')}
+                      className="p-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 transition cursor-pointer animate-pulse"
+                    >
+                      <ArrowLeft className="w-4 h-4" />
+                    </button>
+                    <div>
+                      <h3 className="text-xs font-black text-slate-800 uppercase tracking-wide">ড্রাইভ অফার সমূহ (Drive Offers)</h3>
+                      <p className="text-[9px] text-slate-400 font-bold mt-0.5">অপারেটর সিলেক্ট করে অফার কিনুন</p>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-between items-center pt-1">
+                    <h3 className="text-xs font-black uppercase tracking-wider text-slate-400">Select Operators</h3>
+                    <span className="text-[10px] text-blue-600 font-bold hover:underline cursor-pointer" onClick={() => setSelectedOperator('All')}>Show All</span>
+                  </div>
+
+                  {/* Operator Selector Buttons */}
+                  <div className="grid grid-cols-6 gap-1.5">
+                    {[
+                      { id: 'All', label: 'All', icon: '🌐' },
+                      { id: 'GP', label: 'GP', icon: '🔹' },
+                      { id: 'Robi', label: 'Robi', icon: '🛑' },
+                      { id: 'Airtel', label: 'Airtel', icon: '❤️' },
+                      { id: 'Banglalink', label: 'BL', icon: '🔸' },
+                      { id: 'Teletalk', label: 'Teletalk', icon: '🟢' },
+                    ].map(op => (
+                      <button
+                        key={op.id}
+                        onClick={() => setSelectedOperator(op.id as any)}
+                        className={`py-2 px-1 rounded-xl flex flex-col items-center justify-center gap-0.5 border text-center transition cursor-pointer hover:border-blue-400 ${
+                          selectedOperator === op.id 
+                            ? 'bg-blue-600 text-white border-blue-500 shadow-md font-bold' 
+                            : 'bg-white text-slate-700 border-slate-100 shadow-sm'
+                        }`}
+                      >
+                        <span className="text-sm select-none">{op.icon}</span>
+                        <span className="text-[10px] font-bold leading-none">{op.label}</span>
                       </button>
                     ))}
                   </div>
 
-                  <div className="relative">
-                    <input
-                      type="text"
-                      placeholder="খুঁজুন (যেমন: 10GB, 30 Day...)"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-4 py-2 text-xs focus:outline-none focus:border-blue-500"
-                    />
-                    <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-                  </div>
-                </div>
-
-                {/* Offer Packages List */}
-                <div className="space-y-2.5">
-                  {filteredOffers.length === 0 ? (
-                    <div className="bg-white rounded-2xl p-8 text-center text-slate-400 border border-slate-100 shadow-sm">
-                      <Info className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-                      <p className="text-xs font-bold">কোন অফার পাওয়া যায়নি!</p>
-                      <p className="text-[10px] text-slate-400 mt-1">দয়া করে অন্য অপারেটর বা লেখা লিখে খুঁজুন।</p>
+                  {/* Pack Type Tabs and Search bar */}
+                  <div className="bg-white rounded-2xl p-3 shadow-sm border border-slate-100 space-y-3">
+                    <div className="flex gap-2 p-1 bg-slate-100 rounded-xl">
+                      {(['Drive Pack', 'Regular Pack'] as const).map(tab => (
+                        <button
+                          key={tab}
+                          onClick={() => setActiveTab(tab)}
+                          className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition cursor-pointer ${
+                            activeTab === tab 
+                              ? 'bg-blue-600 text-white shadow-sm' 
+                              : 'bg-transparent text-slate-500 hover:text-slate-800'
+                          }`}
+                        >
+                          {tab === 'Drive Pack' ? '🔥 ড্রাইভ প্যাক' : '⚡ রেগুলার প্যাক'}
+                        </button>
+                      ))}
                     </div>
-                  ) : (
-                    filteredOffers.map(offer => (
-                      <div 
-                        key={offer.id} 
-                        className="bg-white rounded-2xl p-3.5 shadow-sm border border-slate-100 hover:border-blue-400 transition flex flex-col justify-between gap-3"
-                      >
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <div className="flex items-center gap-1.5">
-                              <span className={`px-2 py-0.5 rounded text-[10px] font-extrabold uppercase ${
-                                offer.operator === 'GP' ? 'bg-blue-100 text-blue-700' :
-                                offer.operator === 'Robi' ? 'bg-red-100 text-red-700' :
-                                offer.operator === 'Airtel' ? 'bg-rose-100 text-rose-700' :
-                                offer.operator === 'Banglalink' ? 'bg-orange-100 text-orange-700' : 'bg-emerald-100 text-emerald-700'
-                              }`}>
-                                {offer.operator}
-                              </span>
-                              <span className="text-[9px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-semibold">
-                                {offer.validity} Validity
+
+                    <div className="relative">
+                      <input
+                        type="text"
+                        placeholder="খুঁজুন (যেমন: 10GB, 30 Day...)"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-4 py-2 text-xs focus:outline-none focus:border-blue-500 text-slate-800"
+                      />
+                      <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                    </div>
+                  </div>
+
+                  {/* Offer Packages List */}
+                  <div className="space-y-2.5">
+                    {filteredOffers.length === 0 ? (
+                      <div className="bg-white rounded-2xl p-8 text-center text-slate-400 border border-slate-100 shadow-sm">
+                        <Info className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                        <p className="text-xs font-bold">কোন অফার পাওয়া যায়নি!</p>
+                        <p className="text-[10px] text-slate-400 mt-1">দয়া করে অন্য অপারেটর বা লেখা লিখে খুঁজুন।</p>
+                      </div>
+                    ) : (
+                      filteredOffers.map(offer => (
+                        <div 
+                          key={offer.id} 
+                          className="bg-white rounded-2xl p-3.5 shadow-sm border border-slate-100 hover:border-blue-400 transition flex flex-col justify-between gap-3"
+                        >
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <div className="flex items-center gap-1.5">
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-extrabold uppercase ${
+                                  offer.operator === 'GP' ? 'bg-blue-100 text-blue-700' :
+                                  offer.operator === 'Robi' ? 'bg-red-100 text-red-700' :
+                                  offer.operator === 'Airtel' ? 'bg-rose-100 text-rose-700' :
+                                  offer.operator === 'Banglalink' ? 'bg-orange-100 text-orange-700' : 'bg-emerald-100 text-emerald-700'
+                                }`}>
+                                  {offer.operator}
+                                </span>
+                                <span className="text-[9px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-semibold">
+                                  {offer.validity} Validity
+                                </span>
+                              </div>
+                              <h4 className="text-xs font-extrabold text-slate-800 mt-2">{offer.title}</h4>
+                              <p className="text-[10px] text-slate-400 mt-0.5 leading-relaxed">{offer.description}</p>
+                            </div>
+
+                            <div className="text-right shrink-0">
+                              <span className="text-[10px] text-slate-400 line-through block">{offer.originalPrice} Tk</span>
+                              <span className="text-sm font-black text-emerald-500 block">{offer.offerPrice} Tk</span>
+                              <span className="text-[9px] text-rose-500 bg-rose-50 px-1 py-0.5 rounded font-bold mt-1 inline-block">
+                                Save {offer.originalPrice - offer.offerPrice} Tk
                               </span>
                             </div>
-                            <h4 className="text-xs font-extrabold text-slate-800 mt-2">{offer.title}</h4>
-                            <p className="text-[10px] text-slate-400 mt-0.5 leading-relaxed">{offer.description}</p>
                           </div>
 
-                          <div className="text-right shrink-0">
-                            <span className="text-[10px] text-slate-400 line-through block">{offer.originalPrice} Tk</span>
-                            <span className="text-sm font-black text-emerald-500 block">{offer.offerPrice} Tk</span>
-                            <span className="text-[9px] text-rose-500 bg-rose-50 px-1 py-0.5 rounded font-bold mt-1 inline-block">
-                              Save {offer.originalPrice - offer.offerPrice} Tk
+                          <div className="flex items-center justify-between border-t border-slate-100 pt-2.5">
+                            <span className="text-[10px] text-slate-400 flex items-center gap-1">
+                              <span>✅ Delivery inside 15m</span>
                             </span>
+                            <button
+                              onClick={() => { setSelectedOfferForBuy(offer); setHomeSubMode('buyOffer'); }}
+                              className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold rounded-lg transition-all shadow-md hover:shadow-blue-200 cursor-pointer"
+                            >
+                              Buy Now
+                            </button>
                           </div>
                         </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
 
-                        <div className="flex items-center justify-between border-t border-slate-100 pt-2.5">
-                          <span className="text-[10px] text-slate-400 flex items-center gap-1">
-                            <span>✅ Delivery inside 15m</span>
-                          </span>
-                          <button
-                            onClick={() => setSelectedOfferForBuy(offer)}
-                            className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold rounded-lg transition-all shadow-md hover:shadow-blue-200 cursor-pointer"
-                          >
-                            Buy Now
-                          </button>
+              {homeSubMode === 'recharge' && (
+                <div className="space-y-4 animate-fade-in text-slate-800">
+                  
+                  {/* HEADER BAR WITH BACK BUTTON */}
+                  <div className="flex items-center gap-3 bg-white p-3.5 rounded-2xl border border-slate-100 shadow-sm animate-fade-in">
+                    <button
+                      onClick={() => setHomeSubMode('menu')}
+                      className="p-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 transition cursor-pointer animate-pulse"
+                    >
+                      <ArrowLeft className="w-4 h-4" />
+                    </button>
+                    <div>
+                      <h3 className="text-xs font-black text-slate-800 uppercase tracking-wide">মোবাইল রিচার্জ (Recharge)</h3>
+                      <p className="text-[9px] text-slate-400 font-bold mt-0.5">ইনস্ট্যান্ট রিচার্জ সাবমিট করুন</p>
+                    </div>
+                  </div>
+
+                  <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 space-y-4 text-slate-800">
+                    <div className="text-center pb-2 border-b border-slate-100">
+                      <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider">মোবাইল রিচার্জ (Flexiload / Recharge)</h3>
+                      <p className="text-[9px] text-slate-400 mt-0.5 font-bold">এখানে মোবাইল রিচার্জ সাবমিট করুন</p>
+                    </div>
+
+                    <form onSubmit={handleRechargeSubmit} className="space-y-4">
+                      {rechargeError && (
+                        <div className="p-3 bg-red-50 border border-red-200 text-red-800 rounded-xl text-xs flex items-center gap-2">
+                          <AlertTriangle className="w-4 h-4 shrink-0 text-red-600" />
+                          <p className="font-semibold">{rechargeError}</p>
+                        </div>
+                      )}
+
+                      {/* Recharge Mobile Number */}
+                      <div className="space-y-1">
+                        <label className="block text-[10px] font-black text-slate-400 tracking-wider uppercase">মোবাইল নম্বর (Target Number) *</label>
+                        <input
+                          type="text"
+                          required
+                          maxLength={11}
+                          placeholder="যেমন: 017xxxxxxxx"
+                          value={rechargePhone}
+                          onChange={(e) => setRechargePhone(e.target.value.replace(/[^0-9]/g, ''))}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm text-slate-800 font-mono tracking-widest focus:outline-none focus:border-blue-500 text-center"
+                        />
+                      </div>
+
+                      {/* Select Operator with Logo Grid */}
+                      <div className="space-y-1.5">
+                        <label className="block text-[10px] font-black text-slate-400 tracking-wider uppercase">অপারেটর নির্বাচন (Operator) *</label>
+                        <div className="grid grid-cols-5 gap-1.5">
+                          {[
+                            { id: 'GP', label: 'GP', icon: '🔹' },
+                            { id: 'Robi', label: 'Robi', icon: '🛑' },
+                            { id: 'Airtel', label: 'Airtel', icon: '❤️' },
+                            { id: 'Banglalink', label: 'BL', icon: '🔸' },
+                            { id: 'Teletalk', label: 'Teletalk', icon: '🟢' },
+                          ].map(op => (
+                            <button
+                              key={op.id}
+                              type="button"
+                              onClick={() => setRechargeOperator(op.id as OperatorName)}
+                              className={`py-2 px-1 rounded-xl flex flex-col items-center justify-center gap-0.5 border text-center transition cursor-pointer hover:border-blue-400 ${
+                                rechargeOperator === op.id 
+                                  ? 'bg-blue-600 text-white border-blue-500 shadow-md font-bold' 
+                                  : 'bg-slate-50 text-slate-700 border-slate-150 shadow-sm'
+                              }`}
+                            >
+                              <span className="text-xs select-none">{op.icon}</span>
+                              <span className="text-[9px] font-bold leading-none">{op.label}</span>
+                            </button>
+                          ))}
                         </div>
                       </div>
-                    ))
-                  )}
-                </div>
 
-              </div>
+                      {/* Connection Type */}
+                      <div className="space-y-1">
+                        <label className="block text-[10px] font-black text-slate-400 tracking-wider uppercase">সিম ক্যাটাগরি (Type) *</label>
+                        <div className="grid grid-cols-3 gap-2">
+                          {(['Prepaid', 'Postpaid', 'Skitto'] as const).map(type => (
+                            <button
+                              key={type}
+                              type="button"
+                              onClick={() => setRechargeType(type)}
+                              className={`py-2 text-[10px] font-black rounded-xl transition cursor-pointer border ${
+                                rechargeType === type 
+                                  ? 'bg-blue-600 border-blue-500 text-white shadow-sm' 
+                                  : 'bg-slate-50 border-slate-200 text-slate-700'
+                              }`}
+                            >
+                              {type === 'Prepaid' ? 'প্রিপেইড' : type === 'Postpaid' ? 'পোস্টপেইড' : 'Skitto'}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Recharge Amount */}
+                      <div className="space-y-1">
+                        <label className="block text-[10px] font-black text-slate-400 tracking-wider uppercase">রিচার্জের পরিমাণ (Amount Tk) *</label>
+                        <input
+                          type="number"
+                          required
+                          placeholder="যেমন: ৫০, ১০০, ৫০০..."
+                          value={rechargeAmount}
+                          onChange={(e) => setRechargeAmount(e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm text-slate-800 font-extrabold focus:outline-none focus:border-blue-500 text-center"
+                        />
+                      </div>
+
+                      {/* Confirm PIN */}
+                      <div className="space-y-1">
+                        <label className="block text-[10px] font-black text-slate-400 tracking-wider uppercase">আপনার ৪ ডিজিট ট্রানজেকশন পিন (PIN) *</label>
+                        <input
+                          type="password"
+                          required
+                          maxLength={4}
+                          placeholder="যেমন: xxxx"
+                          value={rechargePin}
+                          onChange={(e) => setRechargePin(e.target.value.replace(/[^0-9]/g, ''))}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm text-slate-800 font-mono tracking-widest focus:outline-none focus:border-blue-500 text-center"
+                        />
+                      </div>
+
+                      <div className="flex justify-between items-center text-xs text-slate-400 font-medium pt-1">
+                        <span>বর্তমান ব্যালেন্স:</span>
+                        <span className="font-bold text-slate-700">{user.balance.toFixed(2)} Tk</span>
+                      </div>
+
+                      <button
+                        type="submit"
+                        className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-blue-200 cursor-pointer"
+                      >
+                        রিচার্জ সফল করুন (Submit Recharge Request)
+                      </button>
+                    </form>
+                  </div>
+                </div>
+              )}
+
+              {homeSubMode === 'buyOffer' && selectedOfferForBuy && (
+                <div className="space-y-4 animate-fade-in text-slate-800">
+                  
+                  {/* HEADER BAR WITH BACK BUTTON */}
+                  <div className="flex items-center gap-3 bg-white p-3.5 rounded-2xl border border-slate-100 shadow-sm animate-fade-in">
+                    <button
+                      onClick={() => { setHomeSubMode('drive'); setBuyError(''); }}
+                      className="p-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 transition cursor-pointer"
+                    >
+                      <ArrowLeft className="w-4 h-4" />
+                    </button>
+                    <div>
+                      <h3 className="text-xs font-black text-slate-800 uppercase tracking-wide">অফারটি নিশ্চিত করুন (Buy Pack)</h3>
+                      <p className="text-[9px] text-slate-400 font-bold mt-0.5">অফার ক্রয়ের তথ্যসমূহ সঠিকভাবে প্রদান করুন</p>
+                    </div>
+                  </div>
+
+                  <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 space-y-4 text-slate-800">
+                    <div className="bg-slate-50 p-3.5 rounded-xl space-y-2 border border-slate-100/80">
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="font-bold text-slate-500">অপারেটর:</span>
+                        <span className="font-extrabold text-blue-600 bg-blue-50 px-2 py-0.5 rounded uppercase">{selectedOfferForBuy.operator}</span>
+                      </div>
+                      <div className="flex justify-between items-start text-xs gap-4">
+                        <span className="font-bold text-slate-500 shrink-0">অফার:</span>
+                        <span className="font-extrabold text-slate-800 text-right">{selectedOfferForBuy.title}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="font-bold text-slate-500">মূল্য:</span>
+                        <span className="font-black text-emerald-600 text-sm">{selectedOfferForBuy.offerPrice} Tk</span>
+                      </div>
+                    </div>
+
+                    {buyError && (
+                      <div className="p-2.5 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2 text-red-800 text-xs animate-shake">
+                        <AlertTriangle className="w-4 h-4 shrink-0 text-red-600" />
+                        <p>{buyError}</p>
+                      </div>
+                    )}
+
+                    <form onSubmit={handleBuyOfferConfirm} className="space-y-4">
+                      <div className="space-y-1.5">
+                        <label className="block text-[11px] font-black text-slate-500 uppercase">যেই নাম্বারে অফারটি দিবেন (Target Number) *</label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="যেমন: 01712345678"
+                          value={targetNumber}
+                          onChange={(e) => setTargetNumber(e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-800 font-mono tracking-wider text-center focus:outline-none focus:border-blue-500"
+                        />
+                        <p className="text-[10px] text-rose-500 bg-rose-50/50 p-2 rounded-lg border border-rose-100 mt-1 flex items-start gap-1 leading-normal font-medium">
+                          <span className="shrink-0 text-xs">⚠️</span> নাম্বার ভুল হলে টাকা রিফান্ড বা অফার ফেরত আসবে না!
+                        </p>
+                      </div>
+
+                      <div className="flex justify-between items-center text-xs text-slate-400 font-medium pt-1">
+                        <span>আপনার বর্তমান ব্যালেন্স:</span>
+                        <span className="font-bold text-slate-700">{user.balance} Tk</span>
+                      </div>
+
+                      <button
+                        type="submit"
+                        className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-blue-200 hover:shadow-lg hover:scale-[1.02] transform active:scale-95 cursor-pointer"
+                      >
+                        Buy Offer (Tk {selectedOfferForBuy.offerPrice} কাটবে)
+                      </button>
+                    </form>
+                  </div>
+                </div>
+              )}
 
             </div>
           )}
@@ -1154,73 +1488,7 @@ export default function UserApp({
 
         </div>
 
-        {/* Dynamic Buy Offer Modal overlay */}
-        {selectedOfferForBuy && (
-          <div className="absolute inset-0 bg-black/60 flex items-end z-50 animate-fade-in">
-            <div className="w-full bg-white rounded-t-3xl p-5 space-y-4 shadow-2xl animate-slide-up">
-              <div className="flex justify-between items-center border-b border-slate-100 pb-2">
-                <h3 className="text-sm font-black text-slate-800">অফারটি নিশ্চিত করুন (Buy Pack)</h3>
-                <button 
-                  onClick={() => { setSelectedOfferForBuy(null); setBuyError(''); }}
-                  className="p-1 rounded-full bg-slate-100 text-slate-500 hover:text-slate-800 transition cursor-pointer"
-                >
-                  <XCircle className="w-5 h-5" />
-                </button>
-              </div>
 
-              <div className="bg-slate-50 p-3 rounded-xl space-y-1.5 border border-slate-100">
-                <div className="flex justify-between items-center text-xs">
-                  <span className="font-bold text-slate-600">অপারেটর:</span>
-                  <span className="font-extrabold text-blue-600">{selectedOfferForBuy.operator}</span>
-                </div>
-                <div className="flex justify-between items-center text-xs">
-                  <span className="font-bold text-slate-600">অফার:</span>
-                  <span className="font-extrabold text-slate-800">{selectedOfferForBuy.title}</span>
-                </div>
-                <div className="flex justify-between items-center text-xs">
-                  <span className="font-bold text-slate-600">মূল্য:</span>
-                  <span className="font-black text-emerald-600 text-sm">{selectedOfferForBuy.offerPrice} Tk</span>
-                </div>
-              </div>
-
-              {buyError && (
-                <div className="p-2.5 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2 text-red-800 text-xs">
-                  <AlertTriangle className="w-4 h-4 shrink-0 text-red-600" />
-                  <p>{buyError}</p>
-                </div>
-              )}
-
-              <form onSubmit={handleBuyOfferConfirm} className="space-y-4">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">যেই নাম্বারে অফারটি দিবেন (Target Number) *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="যেমন: 01712345678"
-                    value={targetNumber}
-                    onChange={(e) => setTargetNumber(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-800 font-mono tracking-wider focus:outline-none focus:border-blue-500"
-                  />
-                  <p className="text-[10px] text-red-500 mt-1 flex items-center gap-1">
-                    <span>⚠️</span> নাম্বার ভুল হলে টাকা রিফান্ড বা অফার ফেরত আসবে না!
-                  </p>
-                </div>
-
-                <div className="flex justify-between items-center text-xs text-slate-400 font-medium">
-                  <span>আপনার বর্তমান ব্যালেন্স:</span>
-                  <span className="font-bold text-slate-700">{user.balance} Tk</span>
-                </div>
-
-                <button
-                  type="submit"
-                  className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition-all shadow-md cursor-pointer"
-                >
-                  Buy Offer (Tk {selectedOfferForBuy.offerPrice} কাটবে)
-                </button>
-              </form>
-            </div>
-          </div>
-        )}
 
         {/* Bottom Navigation Panel Bar (Sleek design) */}
         <div className="absolute bottom-0 inset-x-0 bg-white border-t border-slate-100 h-16 flex justify-around items-center px-2 z-10 shadow-lg">
@@ -1235,7 +1503,13 @@ export default function UserApp({
             return (
               <button
                 key={btn.id}
-                onClick={() => { setActiveScreen(btn.id as any); setBuyError(''); }}
+                onClick={() => { 
+                  setActiveScreen(btn.id as any); 
+                  setBuyError(''); 
+                  if (btn.id === 'home') {
+                    setHomeSubMode('menu');
+                  }
+                }}
                 className={`flex flex-col items-center justify-center flex-1 h-full cursor-pointer transition-all duration-200 ${
                   isActive ? 'text-blue-600 scale-105' : 'text-slate-400 hover:text-slate-600'
                 }`}
@@ -1294,7 +1568,7 @@ export default function UserApp({
               {/* Menu items list */}
               <div className="flex-1 overflow-y-auto px-2 py-3 space-y-1">
                 {[
-                  { id: 'home', label: 'হোম পেজ (Home Dashboard)', icon: Home, action: () => { setActiveScreen('home'); setIsSidebarOpen(false); } },
+                  { id: 'home', label: 'হোম পেজ (Home Dashboard)', icon: Home, action: () => { setActiveScreen('home'); setHomeSubMode('menu'); setIsSidebarOpen(false); } },
                   { id: 'recharge', label: 'টাকা যুক্ত করুন (Add Balance)', icon: Send, action: () => { setActiveScreen('recharge'); setIsSidebarOpen(false); } },
                   { id: 'history', label: 'অর্ডার হিস্টোরি (Purchase Log)', icon: History, action: () => { setActiveScreen('history'); setIsSidebarOpen(false); } },
                   { id: 'profile', label: 'প্রোফাইল ও সাপোর্ট (My Profile)', icon: UserIcon, action: () => { setActiveScreen('profile'); setIsSidebarOpen(false); } },
