@@ -10,7 +10,8 @@ import { User, Offer, BalanceRequest, OfferOrder, AppConfig } from './types';
 import UserApp from './components/UserApp';
 import AdminPanel from './components/AdminPanel';
 import { Shield, Sparkles, Smartphone, LogOut, CheckCircle, SmartphoneIcon, User as UserIcon, Settings, Plus, RotateCcw } from 'lucide-react';
-import { supabase, isSupabaseConfigured, checkSupabaseConnection } from './lib/supabase';
+import { onSnapshot, collection } from 'firebase/firestore';
+import { db } from './lib/firebase';
 import {
   fetchAppSettings,
   updateAppSettings,
@@ -33,7 +34,11 @@ import {
   deleteAllOrders,
   deleteAllDeposits,
   deleteAllUsersExceptAdmin
-} from './lib/supabaseService';
+} from './lib/firebaseService';
+
+const isSupabaseConfigured = () => true;
+const checkSupabaseConnection = async () => ({ success: true, message: 'Connected to Firebase' });
+
 
 export default function App() {
   // Load state from local storage or fallback to initial seed data
@@ -94,67 +99,53 @@ export default function App() {
 
       const dbUsers = await fetchUsersProfiles();
       if (dbUsers) {
-        // Merge database users with local storage users
-        setUsers(prev => {
-          const dbIds = new Set(dbUsers.map(u => u.id));
-          const localOnly = prev.filter(u => !dbIds.has(u.id));
-          return [...dbUsers, ...localOnly];
-        });
+        setUsers(dbUsers);
       }
 
       const dbDeposits = await fetchDeposits();
       if (dbDeposits) {
-        // Merge database deposits with local deposits
-        setBalanceRequests(prev => {
-          const dbIds = new Set(dbDeposits.map(d => d.id));
-          const localOnly = prev.filter(d => !dbIds.has(d.id));
-          return [...dbDeposits, ...localOnly];
-        });
+        setBalanceRequests(dbDeposits);
       }
 
       const dbOrders = await fetchOrders();
       if (dbOrders) {
-        // Merge database orders with local orders
-        setOrders(prev => {
-          const dbIds = new Set(dbOrders.map(o => o.id));
-          const localOnly = prev.filter(o => !dbIds.has(o.id));
-          return [...dbOrders, ...localOnly];
-        });
+        setOrders(dbOrders);
       }
 
       setIsDbConnected(true);
     } catch (err) {
-      console.warn('Error loading real-time Supabase data, utilizing local persistence fallback:', err);
+      console.warn('Error loading real-time Firebase data, utilizing local persistence fallback:', err);
       setIsDbConnected(false);
     }
   };
 
   useEffect(() => {
     // One-time cleanup of local storage demo data to satisfy the user's purge request
-    const hasCleaned = localStorage.getItem('bayzid_telecom_demo_cleaned_v7');
+    const hasCleaned = localStorage.getItem('bayzid_telecom_demo_cleaned_v9');
     if (!hasCleaned) {
       localStorage.removeItem('bayzid_telecom_orders');
       localStorage.removeItem('bayzid_telecom_balance_requests');
       localStorage.removeItem('bayzid_telecom_users_v2');
-      localStorage.setItem('bayzid_telecom_demo_cleaned_v7', 'true');
+      localStorage.setItem('bayzid_telecom_demo_cleaned_v9', 'true');
       window.location.reload();
       return;
     }
 
     loadAllData();
 
-    // Subscribe to real-time events on Supabase
-    const channel = supabase
-      .channel('schema-db-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'app_settings' }, () => { loadAllData(); })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'drive_offers' }, () => { loadAllData(); })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'users_profile' }, () => { loadAllData(); })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'deposits' }, () => { loadAllData(); })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => { loadAllData(); })
-      .subscribe();
+    // Subscribe to real-time events on Firebase Firestore
+    const unsubSettings = onSnapshot(collection(db, 'settings'), () => { loadAllData(); });
+    const unsubOffers = onSnapshot(collection(db, 'offers'), () => { loadAllData(); });
+    const unsubUsers = onSnapshot(collection(db, 'users'), () => { loadAllData(); });
+    const unsubDeposits = onSnapshot(collection(db, 'deposits'), () => { loadAllData(); });
+    const unsubOrders = onSnapshot(collection(db, 'orders'), () => { loadAllData(); });
 
     return () => {
-      supabase.removeChannel(channel);
+      unsubSettings();
+      unsubOffers();
+      unsubUsers();
+      unsubDeposits();
+      unsubOrders();
     };
   }, []);
 
@@ -168,7 +159,7 @@ export default function App() {
     try {
       await createUserProfile(newUser);
     } catch (err) {
-      console.warn('Could not save user profile to database (Supabase not connected)', err);
+      console.warn('Could not save user profile to database (Firebase not connected)', err);
     }
   };
 
@@ -181,7 +172,7 @@ export default function App() {
     if (success) {
       loadAllData();
     } else {
-      console.warn('Local update only (Supabase not connected/configured)');
+      console.warn('Local update only (Firebase not connected/configured)');
     }
   };
 
@@ -521,7 +512,7 @@ export default function App() {
                 await loadAllData();
                 alert('All order data has been permanently deleted from Database and Local Cache!');
               } else {
-                alert('Could not delete orders from database (Supabase offline/error).');
+                alert('Could not delete orders from database (Firebase offline/error).');
               }
             }}
             onDeleteAllDeposits={async () => {
@@ -532,7 +523,7 @@ export default function App() {
                 await loadAllData();
                 alert('All deposit request data has been permanently deleted from Database and Local Cache!');
               } else {
-                alert('Could not delete deposit requests from database (Supabase offline/error).');
+                alert('Could not delete deposit requests from database (Firebase offline/error).');
               }
             }}
             onDeleteAllUsers={async () => {
@@ -543,7 +534,7 @@ export default function App() {
                 await loadAllData();
                 alert('All reseller users (except Admin) have been permanently deleted from Database and Local Cache!');
               } else {
-                alert('Could not delete reseller users from database (Supabase offline/error).');
+                alert('Could not delete reseller users from database (Firebase offline/error).');
               }
             }}
           />

@@ -35,7 +35,6 @@ import {
   MoreVertical
 } from 'lucide-react';
 import { User, Offer, BalanceRequest, OfferOrder, AppConfig, OperatorName } from '../types';
-import { supabase } from '../lib/supabase';
 
 interface UserAppProps {
   user: User;
@@ -176,37 +175,7 @@ export default function UserApp({
 
     // 1. HARDCODED ADMIN CREDENTIALS ROUTING (USER DIRECTIVE)
     if (loginPhone.toLowerCase().trim() === 'bayzidtelecom1@gmail.com' && loginPassword === 'Bayzid@#2023') {
-      try {
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email: 'bayzidtelecom1@gmail.com',
-          password: 'Bayzid@#2023',
-        });
-        
-        if (!error && data.user) {
-          console.log('Admin signed in successfully to Supabase Auth!');
-          setSelectedUserId(data.user.id);
-        } else {
-          // If the admin user doesn't exist in Supabase auth yet, attempt to sign up!
-          const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-            email: 'bayzidtelecom1@gmail.com',
-            password: 'Bayzid@#2023',
-            options: {
-              data: {
-                password: 'Bayzid@#2023',
-              }
-            }
-          });
-          if (!signUpError && signUpData.user) {
-            console.log('Admin registered successfully in Supabase Auth!');
-            setSelectedUserId(signUpData.user.id);
-          } else {
-            console.warn('Could not register Admin in Supabase Auth:', signUpError?.message);
-          }
-        }
-      } catch (err) {
-        console.warn('Supabase Admin auth sync failed:', err);
-      }
-
+      setSelectedUserId('admin_primary_id');
       setIsLoggedIn(true);
       setLoginPhone('');
       setLoginPassword('');
@@ -217,53 +186,7 @@ export default function UserApp({
       return;
     }
 
-    try {
-      // 2. SUPABASE AUTH ATTEMPT
-      const cleanPhone = loginPhone.replace(/[^0-9]/g, '');
-      let email = loginPhone.includes('@') ? loginPhone : `${cleanPhone}@bayzidtelecom.com`;
-
-      // Search profile first if it has a custom name prefix in the email
-      if (!loginPhone.includes('@')) {
-        const { data: matchedProfiles } = await supabase
-          .from('users_profile')
-          .select('email')
-          .ilike('email', `%_${cleanPhone}@bayzidtelecom.com`);
-
-        if (matchedProfiles && matchedProfiles.length > 0) {
-          email = matchedProfiles[0].email;
-        }
-      }
-
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password: loginPassword,
-      });
-
-      if (!error && data.user) {
-        // Authenticated via Supabase Auth
-        // Now wait or read profile
-        const { data: profile } = await supabase
-          .from('users_profile')
-          .select('*')
-          .eq('id', data.user.id)
-          .single();
-
-        if (profile) {
-          setSelectedUserId(data.user.id);
-          setIsLoggedIn(true);
-          setLoginPhone('');
-          setLoginPassword('');
-          if (profile.role === 'admin' && setCurrentView) {
-            setCurrentView('admin');
-          }
-          return;
-        }
-      }
-    } catch (err) {
-      console.warn('Supabase Login failed or not configured, trying local database fallback...', err);
-    }
-
-    // 3. FALLBACK TO LOCAL USERS (For offline simulation & pre-loaded test accounts)
+    // 2. SEARCH IN SYNCHRONIZED REGISTERED PROFILES (Works instantly online/offline!)
     const found = users.find(u => {
       if (u.phone.toLowerCase().trim() === loginPhone.toLowerCase().trim() && u.password === loginPassword) {
         return true;
@@ -309,82 +232,17 @@ export default function UserApp({
       return;
     }
 
-    // 1. SUPABASE AUTH REGISTER ATTEMPT
-    try {
-      const email = `${regName}_${cleanPhone}@bayzidtelecom.com`;
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password: regPassword,
-        options: {
-          data: {
-            password: regPassword,
-          }
-        }
-      });
-
-      if (!error && data.user) {
-        // Update profile with name prefix password, pin, level
-        await supabase
-          .from('users_profile')
-          .update({
-            password: `${regName} - ${regPassword}`,
-            pin: regPin,
-            level: regLevel
-          })
-          .eq('id', data.user.id);
-
-        // Let's create user locally too to keep things synced
-        const newUser: User = {
-          id: data.user.id,
-          name: regName,
-          phone: regPhone,
-          balance: 0,
-          role: 'user',
-          level: regLevel,
-          verified: true,
-          deviceDetails: 'Registered Web Device',
-          password: regPassword,
-          pin: regPin,
-          deviceLocked: false,
-          twoStepEnabled: false,
-          apiKey: `dt_live_${Math.random().toString(36).substring(2, 16)}`,
-          language: 'English'
-        };
-
-        onRegisterUser(newUser);
-        setSelectedUserId(data.user.id);
-        setIsLoggedIn(true);
-
-        setRegName('');
-        setRegPhone('');
-        setRegPassword('');
-        setRegPin('');
-        setAuthError('');
-        alert('Supabase-এ রেজিস্ট্রেশন সফল হয়েছে এবং আপনার অ্যাকাউন্ট লগইন করা হয়েছে!');
-        return;
-      } else if (error) {
-        console.warn('Supabase Auth error:', error.message);
-      }
-    } catch (err) {
-      console.warn('Supabase Registration failed or not configured, using local fallback...', err);
-    }
-
-    // 2. FALLBACK LOCAL REGISTRATION
-    const randomUUID = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-      const r = Math.random() * 16 | 0;
-      const v = c === 'x' ? r : (r & 0x3 | 0x8);
-      return v.toString(16);
-    });
-
+    // CREATE DOCUMENT IN FIRESTORE & LOG IN (Perfect synchronization via App.tsx!)
+    const customUserId = `usr_${cleanPhone}`;
     const newUser: User = {
-      id: randomUUID,
+      id: customUserId,
       name: regName,
-      phone: regPhone,
+      phone: cleanPhone,
       balance: 0,
       role: 'user',
       level: regLevel,
       verified: true,
-      deviceDetails: 'SM-G998B (Android 14)',
+      deviceDetails: 'Registered Web Device',
       password: regPassword,
       pin: regPin,
       deviceLocked: false,
@@ -393,16 +251,21 @@ export default function UserApp({
       language: 'English'
     };
 
-    onRegisterUser(newUser);
-    setSelectedUserId(newUser.id);
-    setIsLoggedIn(true);
+    try {
+      await onRegisterUser(newUser);
+      setSelectedUserId(newUser.id);
+      setIsLoggedIn(true);
 
-    setRegName('');
-    setRegPhone('');
-    setRegPassword('');
-    setRegPin('');
-    setAuthError('');
-    alert('রেজিস্ট্রেশন সফল হয়েছে এবং আপনার অ্যাকাউন্ট লগইন করা হয়েছে!');
+      setRegName('');
+      setRegPhone('');
+      setRegPassword('');
+      setRegPin('');
+      setAuthError('');
+      alert('রেজিস্ট্রেশন সফল হয়েছে এবং আপনার অ্যাকাউন্ট লগইন করা হয়েছে!');
+    } catch (err) {
+      console.warn('Firebase registration failed:', err);
+      setAuthError('রেজিস্ট্রেশন ব্যর্থ হয়েছে! অনুগ্রহ করে আবার চেষ্টা করুন।');
+    }
   };
 
   // Change PIN handler
