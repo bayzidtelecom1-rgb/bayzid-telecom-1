@@ -28,17 +28,17 @@ function mapAppSettings(row: any): AppConfig {
 }
 
 // 1. App Settings
-export async function fetchAppSettings(): Promise<AppConfig> {
+export async function fetchAppSettings(): Promise<AppConfig | null> {
   try {
     const { data, error } = await supabase.from('app_settings').select('*').eq('id', 1).single();
     if (error) {
-      console.warn('Supabase fetchAppSettings failed, using defaults.', error);
-      return mapAppSettings(null);
+      console.warn('Supabase fetchAppSettings failed.', error);
+      return null;
     }
     return mapAppSettings(data);
   } catch (err) {
-    console.warn('Error fetching app settings, using default.', err);
-    return mapAppSettings(null);
+    console.warn('Error fetching app settings.', err);
+    return null;
   }
 }
 
@@ -65,7 +65,7 @@ export async function updateAppSettings(settings: AppConfig): Promise<boolean> {
 }
 
 // 2. Drive Offers
-export async function fetchDriveOffers(): Promise<Offer[]> {
+export async function fetchDriveOffers(): Promise<Offer[] | null> {
   try {
     const { data, error } = await supabase
       .from('drive_offers')
@@ -87,7 +87,7 @@ export async function fetchDriveOffers(): Promise<Offer[]> {
     }));
   } catch (err) {
     console.warn('Error fetching drive offers:', err);
-    return [];
+    return null;
   }
 }
 
@@ -152,7 +152,7 @@ export async function deleteDriveOffer(id: string): Promise<boolean> {
 }
 
 // 3. Resellers Profiles (Users)
-export async function fetchUsersProfiles(): Promise<User[]> {
+export async function fetchUsersProfiles(): Promise<User[] | null> {
   try {
     const { data, error } = await supabase.from('users_profile').select('*');
     if (error) throw error;
@@ -173,7 +173,7 @@ export async function fetchUsersProfiles(): Promise<User[]> {
     }));
   } catch (err) {
     console.warn('Error fetching reseller profiles:', err);
-    return [];
+    return null;
   }
 }
 
@@ -196,7 +196,7 @@ export async function updateUserProfile(userId: string, fields: Partial<User>): 
 }
 
 // 4. Deposits
-export async function fetchDeposits(): Promise<BalanceRequest[]> {
+export async function fetchDeposits(): Promise<BalanceRequest[] | null> {
   try {
     const { data, error } = await supabase
       .from('deposits')
@@ -218,7 +218,7 @@ export async function fetchDeposits(): Promise<BalanceRequest[]> {
     }));
   } catch (err) {
     console.warn('Error fetching deposits:', err);
-    return [];
+    return null;
   }
 }
 
@@ -275,7 +275,7 @@ export async function rejectDepositRequest(depositId: string): Promise<boolean> 
 }
 
 // 5. Orders
-export async function fetchOrders(): Promise<OfferOrder[]> {
+export async function fetchOrders(): Promise<OfferOrder[] | null> {
   try {
     const { data, error } = await supabase
       .from('orders')
@@ -298,7 +298,7 @@ export async function fetchOrders(): Promise<OfferOrder[]> {
     }));
   } catch (err) {
     console.warn('Error fetching orders:', err);
-    return [];
+    return null;
   }
 }
 

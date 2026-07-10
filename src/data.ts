@@ -14,38 +14,6 @@ export const INITIAL_CONFIG: AppConfig = {
 
 export const INITIAL_USERS: User[] = [
   {
-    id: 'user-karim',
-    name: 'Karim',
-    phone: '01723-999888',
-    balance: 1250,
-    role: 'user',
-    level: 'Distributor',
-    verified: true,
-    deviceDetails: 'SM-G998B (Android 14)',
-    password: '123456',
-    pin: '1234',
-    deviceLocked: false,
-    twoStepEnabled: false,
-    apiKey: 'dt_live_8321a4f9b0c2e3',
-    language: 'English'
-  },
-  {
-    id: 'user-johurul',
-    name: 'Johurul Islam',
-    phone: '01854-321098',
-    balance: 450,
-    role: 'user',
-    level: 'Dealer',
-    verified: true,
-    deviceDetails: 'X90_Plus (Android 13)',
-    password: '123456',
-    pin: '1234',
-    deviceLocked: false,
-    twoStepEnabled: false,
-    apiKey: 'dt_live_1922c3d8e7b1a5',
-    language: 'English'
-  },
-  {
     id: 'admin-telecom',
     name: 'Bayzid Admin',
     phone: 'bayzidtelecom1@gmail.com',
@@ -154,65 +122,6 @@ export const INITIAL_OFFERS: Offer[] = [
   }
 ];
 
-export const INITIAL_BALANCE_REQUESTS: BalanceRequest[] = [
-  {
-    id: 'req-1',
-    userId: 'user-karim',
-    userName: 'Karim',
-    amount: 1000,
-    senderNumber: '01712-345678',
-    transactionId: 'BKX5S389W',
-    method: 'bKash',
-    status: 'Approved',
-    createdAt: '2026-07-05T10:30:00.000Z'
-  },
-  {
-    id: 'req-2',
-    userId: 'user-johurul',
-    userName: 'Johurul Islam',
-    amount: 500,
-    senderNumber: '01987-654321',
-    transactionId: 'NGD4F921B',
-    method: 'Nagad',
-    status: 'Pending',
-    createdAt: '2026-07-06T08:15:00.000Z'
-  },
-  {
-    id: 'req-3',
-    userId: 'user-karim',
-    userName: 'Karim',
-    amount: 250,
-    senderNumber: '01555-444333',
-    transactionId: 'RCT2A738Q',
-    method: 'Rocket',
-    status: 'Pending',
-    createdAt: '2026-07-06T09:45:00.000Z'
-  }
-];
+export const INITIAL_BALANCE_REQUESTS: BalanceRequest[] = [];
 
-export const INITIAL_ORDERS: OfferOrder[] = [
-  {
-    id: 'order-1',
-    userId: 'user-karim',
-    userName: 'Karim',
-    offerId: 'offer-1',
-    offerTitle: '10GB Data + 300 Min (Drive Pack)',
-    operator: 'Robi',
-    offerPrice: 380,
-    targetPhone: '01811-223344',
-    status: 'Successful',
-    createdAt: '2026-07-05T14:20:00.000Z'
-  },
-  {
-    id: 'order-2',
-    userId: 'user-johurul',
-    userName: 'Johurul Islam',
-    offerId: 'offer-4',
-    offerTitle: '15GB Internet + 400 Min',
-    operator: 'Banglalink',
-    offerPrice: 420,
-    targetPhone: '01944-556677',
-    status: 'Pending',
-    createdAt: '2026-07-06T09:10:00.000Z'
-  }
-];
+export const INITIAL_ORDERS: OfferOrder[] = [];

@@ -10,7 +10,7 @@ import { User, Offer, BalanceRequest, OfferOrder, AppConfig } from './types';
 import UserApp from './components/UserApp';
 import AdminPanel from './components/AdminPanel';
 import { Shield, Sparkles, Smartphone, LogOut, CheckCircle, SmartphoneIcon, User as UserIcon, Settings, Plus, RotateCcw } from 'lucide-react';
-import { supabase, isSupabaseConfigured } from './lib/supabase';
+import { supabase, isSupabaseConfigured, checkSupabaseConnection } from './lib/supabase';
 import {
   fetchAppSettings,
   updateAppSettings,
@@ -57,36 +57,66 @@ export default function App() {
     return saved ? JSON.parse(saved) : INITIAL_ORDERS;
   });
 
-  const [selectedUserId, setSelectedUserId] = useState<string>('user-karim');
+  const [selectedUserId, setSelectedUserId] = useState<string>('admin-telecom');
   const [currentView, setCurrentView] = useState<'user' | 'admin'>('user');
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
   const [isDbConnected, setIsDbConnected] = useState<boolean | null>(null);
 
   // Load and synchronize data with Supabase in real-time
   const loadAllData = async () => {
+    if (!isSupabaseConfigured()) {
+      setIsDbConnected(false);
+      return;
+    }
+
     try {
+      const conn = await checkSupabaseConnection();
+      if (!conn.success) {
+        console.warn('Supabase database connection failed:', conn.message);
+        setIsDbConnected(false);
+        return;
+      }
+
       const dbConfig = await fetchAppSettings();
-      setConfig(dbConfig);
+      if (dbConfig) {
+        setConfig(dbConfig);
+      }
 
       const dbOffers = await fetchDriveOffers();
-      if (dbOffers && dbOffers.length > 0) {
+      if (dbOffers) {
         setOffers(dbOffers);
       }
 
       const dbUsers = await fetchUsersProfiles();
-      if (dbUsers && dbUsers.length > 0) {
-        setUsers(dbUsers);
+      if (dbUsers) {
+        // Merge database users with local storage users
+        setUsers(prev => {
+          const dbIds = new Set(dbUsers.map(u => u.id));
+          const localOnly = prev.filter(u => !dbIds.has(u.id));
+          return [...dbUsers, ...localOnly];
+        });
       }
 
       const dbDeposits = await fetchDeposits();
-      if (dbDeposits && dbDeposits.length > 0) {
-        setBalanceRequests(dbDeposits);
+      if (dbDeposits) {
+        // Merge database deposits with local deposits
+        setBalanceRequests(prev => {
+          const dbIds = new Set(dbDeposits.map(d => d.id));
+          const localOnly = prev.filter(d => !dbIds.has(d.id));
+          return [...dbDeposits, ...localOnly];
+        });
       }
 
       const dbOrders = await fetchOrders();
-      if (dbOrders && dbOrders.length > 0) {
-        setOrders(dbOrders);
+      if (dbOrders) {
+        // Merge database orders with local orders
+        setOrders(prev => {
+          const dbIds = new Set(dbOrders.map(o => o.id));
+          const localOnly = prev.filter(o => !dbIds.has(o.id));
+          return [...dbOrders, ...localOnly];
+        });
       }
+
       setIsDbConnected(true);
     } catch (err) {
       console.warn('Error loading real-time Supabase data, utilizing local persistence fallback:', err);
