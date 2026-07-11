@@ -117,6 +117,81 @@ export default function UserApp({
   const [buyPin, setBuyPin] = useState('');
   const [buyError, setBuyError] = useState('');
 
+  // WhatsApp click-to-chat redirection states
+  const [whatsappRedirectUrl, setWhatsappRedirectUrl] = useState<string | null>(null);
+  const [whatsappPromptMsg, setWhatsappPromptMsg] = useState<string>('');
+
+  // Helper to construct WhatsApp link
+  const generateWhatsappRedirect = (type: 'offer' | 'recharge' | 'deposit', details: {
+    operator?: string;
+    title?: string;
+    targetPhone?: string;
+    amount?: number | string;
+    method?: string;
+    senderNumber?: string;
+    transactionId?: string;
+    rechargeType?: string;
+  }) => {
+    const timeString = new Date().toLocaleString('en-US', { hour12: true });
+    let message = '';
+
+    if (type === 'offer') {
+      message = `আসসালামু আলাইকুম, আমি একটি অফার কিনেছি। নিচে বিস্তারিত দেওয়া হলো:
+
+👤 গ্রাহকের নাম: ${user.name}
+📱 অপারেটর: ${details.operator || ''}
+🎁 অফার: ${details.title || ''}
+📞 টার্গেট নাম্বার: ${details.targetPhone || ''}
+💰 অফার মূল্য: ${details.amount || 0} Tk
+⏱️ সময়: ${timeString}
+
+অনুগ্রহ করে অফারটি দ্রুত সাকসেসফুল করে দিন। ধন্যবাদ!`;
+    } else if (type === 'recharge') {
+      message = `আসসালামু আলাইকুম, আমি একটি মোবাইল রিচার্জ সাবমিট করেছি। নিচে বিস্তারিত দেওয়া হলো:
+
+👤 গ্রাহকের নাম: ${user.name}
+📱 অপারেটর: ${details.operator || ''}
+♻️ ক্যাটাগরি: ${details.rechargeType || 'Prepaid'}
+💰 পরিমাণ: ${details.amount || 0} Tk
+📞 রিচার্জ নাম্বার: ${details.targetPhone || ''}
+⏱️ সময়: ${timeString}
+
+অনুগ্রহ করে রিচার্জটি সাকসেসফুল করে দিন। ধন্যবাদ!`;
+    } else if (type === 'deposit') {
+      message = `আসসালামু আলাইকুম, আমি ব্যালেন্স এড করার জন্য টাকা পাঠিয়েছি। নিচে বিস্তারিত দেওয়া হলো:
+
+👤 গ্রাহকের নাম: ${user.name}
+🏦 পেমেন্ট মেথড: ${details.method || ''}
+💰 পরিমাণ: ${details.amount || 0} Tk
+📞 প্রেরক নাম্বার: ${details.senderNumber || ''}
+🔑 ট্রানজেকশন আইডি: ${details.transactionId || ''}
+⏱️ সময়: ${timeString}
+
+অনুগ্রহ করে আমার ব্যালেন্সটি এড করে দিন। ধন্যবাদ!`;
+    }
+
+    // Parse supportWhatsapp configuration safely
+    let cleanNumber = '';
+    const whatsappConfig = config.supportWhatsapp || '';
+    if (whatsappConfig.includes('wa.me/')) {
+      const parts = whatsappConfig.split('wa.me/');
+      cleanNumber = parts[parts.length - 1].replace(/[^0-9]/g, '');
+    } else if (whatsappConfig.includes('api.whatsapp.com/send')) {
+      const urlParams = new URLSearchParams(whatsappConfig.split('?')[1] || '');
+      cleanNumber = (urlParams.get('phone') || '').replace(/[^0-9]/g, '');
+    } else {
+      cleanNumber = whatsappConfig.replace(/[^0-9]/g, '');
+    }
+
+    if (!cleanNumber) {
+      cleanNumber = '8801601202721'; // default fallback
+    }
+
+    const url = `https://wa.me/${cleanNumber}?text=${encodeURIComponent(message)}`;
+    setWhatsappRedirectUrl(url);
+    setWhatsappPromptMsg(message);
+  };
+
   // Service Sub-mode (Drive Offer vs direct Recharge)
   const [homeSubMode, setHomeSubMode] = useState<'menu' | 'drive' | 'recharge'>('menu');
 
@@ -191,11 +266,18 @@ export default function UserApp({
       targetPhone: cleanNum
     });
 
+    // Generate WhatsApp Redirect
+    generateWhatsappRedirect('recharge', {
+      operator: rechargeOperator,
+      amount: amountNum,
+      targetPhone: cleanNum,
+      rechargeType: rechargeType
+    });
+
     setRechargeSuccess(true);
     setRechargePhone('');
     setRechargeAmount('');
     setRechargePin('');
-    alert('রিচার্জের অনুরোধটি সফলভাবে সাবমিট হয়েছে!');
   };
 
   // Derived state: filtered offers
@@ -428,6 +510,15 @@ export default function UserApp({
       method: addMethod
     });
     setAddSuccessMsg(true);
+
+    // Generate WhatsApp Redirect
+    generateWhatsappRedirect('deposit', {
+      amount: addAmount,
+      senderNumber: addSender,
+      transactionId: addTxId.trim().toUpperCase(),
+      method: addMethod
+    });
+
     // Reset form fields
     setAddAmount('');
     setAddSender('');
@@ -467,12 +558,19 @@ export default function UserApp({
       targetPhone: targetNumber
     });
 
+    // Generate WhatsApp Redirect
+    generateWhatsappRedirect('offer', {
+      operator: selectedOfferForBuy.operator,
+      title: selectedOfferForBuy.title,
+      amount: selectedOfferForBuy.offerPrice,
+      targetPhone: targetNumber
+    });
+
     // Reset and success
     setSelectedOfferForBuy(null);
     setTargetNumber('');
     setBuyPin('');
     setBuyError('');
-    alert('অফারটি সফলভাবে সাবমিট করা হয়েছে!');
     setHomeSubMode('drive');
   };
 
@@ -1792,6 +1890,53 @@ export default function UserApp({
                   </form>
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* WhatsApp Redirection Prompter Modal */}
+        {whatsappRedirectUrl && (
+          <div className="absolute inset-0 bg-black/80 z-[100] flex items-center justify-center p-4 animate-fade-in">
+            <div className="w-full max-w-sm bg-white rounded-2xl p-5 space-y-4 shadow-2xl relative text-slate-800 border border-slate-150">
+              <div className="text-center space-y-1">
+                <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto text-2xl animate-bounce">
+                  💬
+                </div>
+                <h3 className="text-sm font-black text-slate-800 uppercase tracking-wide">হোয়াটসঅ্যাপ কনফার্মেশন</h3>
+                <p className="text-[11px] text-slate-500 font-bold">অনুরোধটি সার্ভারে সফলভাবে সাবমিট হয়েছে! ✅</p>
+              </div>
+
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/60 text-left">
+                <p className="text-[10px] font-black uppercase text-slate-400 mb-1.5 tracking-wider">হোয়াটসঅ্যাপ মেসেজের প্রিভিউ:</p>
+                <pre className="text-[10px] font-medium leading-relaxed font-sans text-slate-600 whitespace-pre-wrap max-h-[160px] overflow-y-auto bg-white p-2.5 rounded-lg border border-slate-100 select-all">
+                  {whatsappPromptMsg}
+                </pre>
+              </div>
+
+              <p className="text-[10px] text-slate-500 text-center leading-normal font-medium">
+                আপনি কি পেমেন্ট/অর্ডারের কনফার্মেশনটি আমাদের অফিসিয়াল হোয়াটসঅ্যাপ হেল্পলাইনে পাঠাতে চান? (এটি সম্পূর্ণ ঐচ্ছিক, না পাঠালেও এডমিন প্যানেলে জমা হয়ে থাকবে)
+              </p>
+
+              <div className="grid grid-cols-2 gap-3.5 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setWhatsappRedirectUrl(null)}
+                  className="py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition cursor-pointer text-center"
+                >
+                  না, ফিরে যান
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    window.open(whatsappRedirectUrl, '_blank');
+                    setWhatsappRedirectUrl(null);
+                  }}
+                  className="py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition cursor-pointer text-center flex items-center justify-center gap-1.5 shadow-md shadow-emerald-100"
+                >
+                  <span>হোয়াটসঅ্যাপে পাঠান</span>
+                  <span className="text-sm">↗️</span>
+                </button>
+              </div>
             </div>
           </div>
         )}
