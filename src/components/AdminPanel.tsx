@@ -299,7 +299,7 @@ export default function AdminPanel({
   };
 
   return (
-    <div className="bg-slate-900 text-slate-100 min-h-screen font-sans pb-16">
+    <div className="bg-slate-900 text-slate-100 h-screen overflow-y-auto font-sans pb-16">
       {/* Admin header */}
       <div className="bg-slate-950 border-b border-slate-800 px-6 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
