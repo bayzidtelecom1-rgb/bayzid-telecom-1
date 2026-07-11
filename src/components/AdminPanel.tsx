@@ -22,7 +22,8 @@ import {
   VolumeX,
   Bell,
   BellRing,
-  LogOut
+  LogOut,
+  Copy
 } from 'lucide-react';
 import { User, Offer, BalanceRequest, OfferOrder, AppConfig, OperatorName } from '../types';
 
@@ -37,6 +38,7 @@ interface AdminPanelProps {
   onAddOffer: (offer: Omit<Offer, 'id' | 'isActive'>) => void;
   onDeleteOffer: (id: string) => void;
   onToggleOfferStatus: (id: string) => void;
+  onUpdateOffer?: (id: string, fields: Partial<Offer>) => void;
   onCompleteOrder: (id: string) => void;
   onCancelOrder: (id: string) => void;
   onUpdateConfig: (newConfig: AppConfig) => void;
@@ -58,6 +60,7 @@ export default function AdminPanel({
   onAddOffer,
   onDeleteOffer,
   onToggleOfferStatus,
+  onUpdateOffer,
   onCompleteOrder,
   onCancelOrder,
   onUpdateConfig,
@@ -69,8 +72,19 @@ export default function AdminPanel({
 }: AdminPanelProps) {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'approvals' | 'offers' | 'orders' | 'settings'>('dashboard');
   const [searchQuery, setSearchQuery] = useState('');
+  const [orderFilterTab, setOrderFilterTab] = useState<'Pending' | 'Successful' | 'Canceled'>('Pending');
+  const [copiedOrderId, setCopiedOrderId] = useState<string | null>(null);
+
+  const handleCopyOrderDetails = (id: string, text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedOrderId(id);
+    setTimeout(() => {
+      setCopiedOrderId(prev => prev === id ? null : prev);
+    }, 2000);
+  };
   
-  // Offer Form state
+  // Offer Form state and edit mode
+  const [editingOfferId, setEditingOfferId] = useState<string | null>(null);
   const [offerOperator, setOfferOperator] = useState<OperatorName>('GP');
   const [offerTitle, setOfferTitle] = useState('');
   const [offerDescription, setOfferDescription] = useState('');
@@ -78,6 +92,26 @@ export default function AdminPanel({
   const [offerOriginalPrice, setOfferOriginalPrice] = useState('');
   const [offerOfferPrice, setOfferOfferPrice] = useState('');
   const [offerCategory, setOfferCategory] = useState<'Drive Pack' | 'Regular Pack'>('Drive Pack');
+
+  const handleStartEditOffer = (offer: Offer) => {
+    setEditingOfferId(offer.id);
+    setOfferOperator(offer.operator);
+    setOfferTitle(offer.title);
+    setOfferDescription(offer.description || '');
+    setOfferValidity(offer.validity || '30 Days');
+    setOfferOriginalPrice(offer.originalPrice.toString());
+    setOfferOfferPrice(offer.offerPrice.toString());
+    setOfferCategory(offer.category || 'Drive Pack');
+  };
+
+  const handleCancelEditOffer = () => {
+    setEditingOfferId(null);
+    setOfferTitle('');
+    setOfferDescription('');
+    setOfferValidity('30 Days');
+    setOfferOriginalPrice('');
+    setOfferOfferPrice('');
+  };
 
   // Config Form state
   const [tempConfig, setTempConfig] = useState<AppConfig>({ ...config });
@@ -219,7 +253,7 @@ export default function AdminPanel({
       alert('Please fill in all required fields');
       return;
     }
-    onAddOffer({
+    const payload = {
       operator: offerOperator,
       title: offerTitle,
       description: offerDescription,
@@ -227,14 +261,27 @@ export default function AdminPanel({
       originalPrice: Number(offerOriginalPrice),
       offerPrice: Number(offerOfferPrice),
       category: offerCategory
-    });
+    };
+
+    if (editingOfferId) {
+      if (onUpdateOffer) {
+        onUpdateOffer(editingOfferId, payload);
+        alert('Offer updated successfully!');
+      } else {
+        alert('Update callback is not defined.');
+      }
+      setEditingOfferId(null);
+    } else {
+      onAddOffer(payload);
+      alert('Offer added successfully!');
+    }
+
     // Reset form
     setOfferTitle('');
     setOfferDescription('');
     setOfferValidity('30 Days');
     setOfferOriginalPrice('');
     setOfferOfferPrice('');
-    alert('Offer added successfully!');
   };
 
   const handleUpdateConfigSubmit = async (e: React.FormEvent) => {
@@ -559,8 +606,20 @@ export default function AdminPanel({
                               </span>
                               <span className="text-sm font-bold text-slate-100">{order.offerTitle}</span>
                             </div>
-                            <div className="text-xs text-slate-300">
-                              Target Number: <strong className="font-mono text-sky-400 text-sm">{order.targetPhone}</strong>
+                            <div className="text-xs text-slate-300 flex items-center gap-2 flex-wrap">
+                              <span>Target Number: <strong className="font-mono text-sky-400 text-sm">{order.targetPhone}</strong></span>
+                              <button
+                                onClick={() => handleCopyOrderDetails(order.id, `${order.operator}-${order.offerTitle}-${order.targetPhone}`)}
+                                className={`px-2 py-0.5 border text-[10px] font-mono rounded transition-all duration-200 cursor-pointer flex items-center gap-1.5 shadow-sm ${
+                                  copiedOrderId === order.id
+                                    ? 'bg-emerald-600 border-emerald-500 text-white font-extrabold'
+                                    : 'bg-slate-800 hover:bg-slate-700 border-slate-700 hover:border-slate-600 text-slate-300'
+                                }`}
+                                title="Click to copy: Operator-Title-Number"
+                              >
+                                <Copy className="w-2.5 h-2.5 shrink-0" />
+                                <span>{copiedOrderId === order.id ? 'Copied!' : 'Copy Info'}</span>
+                              </button>
                             </div>
                             <div className="text-[11px] text-slate-400">
                               Ordered by: <span className="font-semibold text-slate-300">{order.userName}</span> | ID: {order.id.slice(-6)}
@@ -1130,6 +1189,29 @@ export default function AdminPanel({
               </div>
             </div>
 
+            {/* Order status sub-tabs */}
+            <div className="flex border-b border-slate-700/60 gap-4 pb-2">
+              {(['Pending', 'Successful', 'Canceled'] as const).map(tab => {
+                const count = orders.filter(o => o.status === tab).length;
+                return (
+                  <button
+                    key={tab}
+                    onClick={() => setOrderFilterTab(tab)}
+                    className={`pb-2 px-1 text-xs font-bold transition-all relative cursor-pointer ${
+                      orderFilterTab === tab 
+                        ? 'text-blue-400 border-b-2 border-blue-500 font-extrabold' 
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    {tab === 'Pending' ? 'Pending Orders' : tab === 'Successful' ? 'Successful Orders' : 'Canceled Orders'}
+                    <span className="ml-1.5 px-1.5 py-0.2 bg-slate-900 border border-slate-700 text-[10px] text-slate-300 rounded-full font-mono font-bold">
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
@@ -1147,6 +1229,7 @@ export default function AdminPanel({
                 </thead>
                 <tbody className="divide-y divide-slate-700/50">
                   {orders
+                    .filter(o => o.status === orderFilterTab)
                     .filter(o => {
                       if (!searchQuery) return true;
                       const q = searchQuery.toLowerCase();
@@ -1155,6 +1238,7 @@ export default function AdminPanel({
                              o.userName.toLowerCase().includes(q) ||
                              o.id.toLowerCase().includes(q);
                     })
+                    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
                     .map(order => (
                       <tr key={order.id} className="hover:bg-slate-750 transition">
                         <td className="py-3.5 px-4 font-mono text-[10px] text-slate-400">
@@ -1193,24 +1277,42 @@ export default function AdminPanel({
                           </span>
                         </td>
                         <td className="py-3.5 px-4 text-right">
-                          {order.status === 'Pending' ? (
-                            <div className="flex gap-1 justify-end">
-                              <button
-                                onClick={() => onCompleteOrder(order.id)}
-                                className="px-2 py-1 bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold rounded flex items-center gap-1 transition cursor-pointer"
-                              >
-                                <Check className="w-3.5 h-3.5" /> Done
-                              </button>
-                              <button
-                                onClick={() => onCancelOrder(order.id)}
-                                className="px-2 py-1 bg-red-655 text-white bg-red-650 hover:bg-red-500 text-xs font-bold rounded transition cursor-pointer"
-                              >
-                                Cancel & Refund
-                              </button>
-                            </div>
-                          ) : (
-                            <span className="text-slate-500 italic">Dispatched</span>
-                          )}
+                          <div className="flex flex-col gap-1.5 items-end justify-end">
+                            {/* Copy Info Box */}
+                            <button
+                              onClick={() => handleCopyOrderDetails(order.id, `${order.operator}-${order.offerTitle}-${order.targetPhone}`)}
+                              className={`px-2 py-1.5 border text-[11px] font-mono rounded-lg transition-all duration-200 cursor-pointer flex items-center gap-1.5 max-w-[220px] text-left truncate shadow-md ${
+                                copiedOrderId === order.id
+                                  ? 'bg-emerald-600 border-emerald-500 text-white font-extrabold scale-102'
+                                  : 'bg-slate-800 hover:bg-slate-700 border-slate-700 hover:border-slate-600 text-slate-200'
+                              }`}
+                              title="Click to copy: Operator-Title-Number"
+                            >
+                              <Copy className="w-3 h-3 shrink-0" />
+                              <span className="truncate">
+                                {copiedOrderId === order.id ? 'Copied!' : `${order.operator}-${order.offerTitle}-${order.targetPhone}`}
+                              </span>
+                            </button>
+
+                            {order.status === 'Pending' ? (
+                              <div className="flex gap-1 justify-end">
+                                <button
+                                  onClick={() => onCompleteOrder(order.id)}
+                                  className="px-2 py-1 bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold rounded flex items-center gap-1 transition cursor-pointer"
+                                >
+                                  <Check className="w-3.5 h-3.5" /> Done
+                                </button>
+                                <button
+                                  onClick={() => onCancelOrder(order.id)}
+                                  className="px-2 py-1 bg-red-600 hover:bg-red-500 text-white text-xs font-bold rounded transition cursor-pointer"
+                                >
+                                  Cancel & Refund
+                                </button>
+                              </div>
+                            ) : (
+                              <span className="text-slate-500 italic text-[11px]">Processed</span>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -1229,9 +1331,9 @@ export default function AdminPanel({
               <div className="border-b border-slate-700 pb-3">
                 <h2 className="text-md font-bold text-white flex items-center gap-2">
                   <PlusCircle className="w-5 h-5 text-blue-500" />
-                  Add New Sim Offer
+                  {editingOfferId ? 'Edit Sim Offer' : 'Add New Sim Offer'}
                 </h2>
-                <p className="text-xs text-slate-400 mt-1">Publish drive packs or regular recharges.</p>
+                <p className="text-xs text-slate-400 mt-1">{editingOfferId ? 'Modify this drive pack details.' : 'Publish drive packs or regular recharges.'}</p>
               </div>
 
               <form onSubmit={handleCreateOfferSubmit} className="space-y-4">
@@ -1328,12 +1430,23 @@ export default function AdminPanel({
                   </div>
                 </div>
 
-                <button
-                  type="submit"
-                  className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-lg transition shadow-lg shadow-blue-900/20 cursor-pointer"
-                >
-                  Publish Offer to Catalog
-                </button>
+                <div className="flex gap-2">
+                  {editingOfferId && (
+                    <button
+                      type="button"
+                      onClick={handleCancelEditOffer}
+                      className="flex-1 py-2.5 bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-bold rounded-lg transition cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                  )}
+                  <button
+                    type="submit"
+                    className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-lg transition shadow-lg shadow-blue-900/20 cursor-pointer"
+                  >
+                    {editingOfferId ? 'Save Changes' : 'Publish Offer to Catalog'}
+                  </button>
+                </div>
               </form>
             </div>
 
@@ -1367,13 +1480,22 @@ export default function AdminPanel({
                             {offer.category}
                           </span>
                         </div>
-                        <button
-                          onClick={() => onDeleteOffer(offer.id)}
-                          className="text-slate-400 hover:text-red-400 p-1 rounded transition cursor-pointer"
-                          title="Delete Pack"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => handleStartEditOffer(offer)}
+                            className="text-blue-400 hover:text-blue-300 bg-blue-500/10 hover:bg-blue-500/20 px-2 py-0.5 rounded text-[10px] font-bold transition cursor-pointer"
+                            title="Edit Pack"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => onDeleteOffer(offer.id)}
+                            className="text-slate-400 hover:text-red-400 p-1 rounded transition cursor-pointer"
+                            title="Delete Pack"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
 
                       <h3 className="text-sm font-extrabold text-slate-100 mt-2">{offer.title}</h3>

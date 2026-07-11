@@ -67,10 +67,28 @@ export default function App() {
     return saved ? JSON.parse(saved) : INITIAL_ORDERS;
   });
 
-  const [selectedUserId, setSelectedUserId] = useState<string>('00000000-0000-0000-0000-000000000000');
-  const [currentView, setCurrentView] = useState<'user' | 'admin'>('user');
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
+  const [selectedUserId, setSelectedUserId] = useState<string>(() => {
+    return localStorage.getItem('bayzid_telecom_selected_user_id') || '00000000-0000-0000-0000-000000000000';
+  });
+  const [currentView, setCurrentView] = useState<'user' | 'admin'>(() => {
+    return (localStorage.getItem('bayzid_telecom_current_view') as 'user' | 'admin') || 'user';
+  });
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
+    return localStorage.getItem('bayzid_telecom_is_logged_in') === 'true';
+  });
   const [isDbConnected, setIsDbConnected] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    localStorage.setItem('bayzid_telecom_selected_user_id', selectedUserId);
+  }, [selectedUserId]);
+
+  useEffect(() => {
+    localStorage.setItem('bayzid_telecom_current_view', currentView);
+  }, [currentView]);
+
+  useEffect(() => {
+    localStorage.setItem('bayzid_telecom_is_logged_in', isLoggedIn ? 'true' : 'false');
+  }, [isLoggedIn]);
 
   // Load and synchronize data with Supabase in real-time
   const loadAllData = async () => {
@@ -350,6 +368,18 @@ export default function App() {
     }
   };
 
+  // Callback: Admin updates offer details
+  const handleUpdateOffer = async (id: string, updatedFields: Partial<Offer>) => {
+    setOffers(prev => prev.map(o => o.id === id ? { ...o, ...updatedFields } : o));
+
+    const success = await updateDriveOffer(id, updatedFields);
+    if (success) {
+      loadAllData();
+    } else {
+      console.warn('Local update only (Supabase offline)');
+    }
+  };
+
   // Callback: Admin dispatches / completes SIM order
   const handleCompleteOrder = async (id: string) => {
     setOrders(prev => prev.map(o => o.id === id ? { ...o, status: 'Successful' } : o));
@@ -496,6 +526,7 @@ export default function App() {
             onAddOffer={handleAddOffer}
             onDeleteOffer={handleDeleteOffer}
             onToggleOfferStatus={handleToggleOfferStatus}
+            onUpdateOffer={handleUpdateOffer}
             onCompleteOrder={handleCompleteOrder}
             onCancelOrder={handleCancelOrder}
             onUpdateConfig={handleUpdateConfig}

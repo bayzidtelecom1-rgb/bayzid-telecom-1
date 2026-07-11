@@ -114,10 +114,19 @@ export default function UserApp({
   // Buy offer modal state
   const [selectedOfferForBuy, setSelectedOfferForBuy] = useState<Offer | null>(null);
   const [targetNumber, setTargetNumber] = useState('');
+  const [buyPin, setBuyPin] = useState('');
   const [buyError, setBuyError] = useState('');
 
   // Service Sub-mode (Drive Offer vs direct Recharge)
   const [homeSubMode, setHomeSubMode] = useState<'menu' | 'drive' | 'recharge'>('menu');
+
+  const handleStartBuyOffer = (offer: Offer) => {
+    setSelectedOfferForBuy(offer);
+    setTargetNumber('');
+    setBuyPin('');
+    setBuyError('');
+    setHomeSubMode('buyOffer');
+  };
 
   // Recharge Form States
   const [rechargePhone, setRechargePhone] = useState('');
@@ -439,6 +448,11 @@ export default function UserApp({
       return;
     }
 
+    if (buyPin !== user.pin) {
+      setBuyError('ভুল পিন কোড! অনুগ্রহ করে সঠিক ট্রানজেকশন পিন কোড দিন।');
+      return;
+    }
+
     if (user.balance < selectedOfferForBuy.offerPrice) {
       setBuyError('আপনার একাউন্টে পর্যাপ্ত টাকা নেই! ব্যালেন্স রিচার্জ করুন।');
       return;
@@ -456,16 +470,46 @@ export default function UserApp({
     // Reset and success
     setSelectedOfferForBuy(null);
     setTargetNumber('');
+    setBuyPin('');
     setBuyError('');
     alert('অফারটি সফলভাবে সাবমিট করা হয়েছে!');
     setHomeSubMode('drive');
   };
 
+  const cleanUserPhone = user.phone ? user.phone.replace(/[^0-9]/g, '') : '';
+
+  const userOrders = [...orders]
+    .filter(o => {
+      if (!user || !user.id) return false;
+      // If user is admin (owner) and viewing user-app, show admin's own orders
+      if (user.role === 'admin') {
+        return o.userId === user.id;
+      }
+      const cleanOrderUserId = o.userId ? o.userId.replace('usr_', '') : '';
+      return o.userId === user.id || (cleanUserPhone && cleanOrderUserId === cleanUserPhone);
+    })
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+  const userDeposits = [...balanceRequests]
+    .filter(d => {
+      if (!user || !user.id) return false;
+      // If user is admin (owner) and viewing user-app, show admin's own deposits
+      if (user.role === 'admin') {
+        return d.userId === user.id;
+      }
+      const cleanDepositUserId = d.userId ? d.userId.replace('usr_', '') : '';
+      const cleanSender = d.senderNumber ? d.senderNumber.replace(/[^0-9]/g, '') : '';
+      return d.userId === user.id || 
+             (cleanUserPhone && cleanDepositUserId === cleanUserPhone) ||
+             (cleanUserPhone && cleanSender === cleanUserPhone);
+    })
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
   return (
-    <div className="bg-slate-950 min-h-screen flex flex-col items-center justify-center select-none w-full md:p-6">
+    <div className="bg-slate-950 h-[100dvh] max-h-[100dvh] overflow-hidden flex flex-col items-center justify-center select-none w-full md:p-6">
       
       {/* Container: Full screen on mobile, elegant centered smartphone frame on desktop */}
-      <div className="w-full h-screen max-h-screen md:h-[860px] relative overflow-hidden md:max-w-md md:rounded-[40px] md:border-[12px] md:border-slate-800 md:shadow-2xl bg-white flex flex-col font-sans transition-all duration-300">
+      <div className="w-full h-full max-h-[100dvh] md:h-[860px] md:max-h-[860px] relative overflow-hidden md:max-w-md md:rounded-[40px] md:border-[12px] md:border-slate-800 md:shadow-2xl bg-white flex flex-col font-sans transition-all duration-300">
 
         {!isLoggedIn ? (
           <div className="flex-1 bg-slate-950 flex flex-col items-center justify-center text-white px-4 py-8 overflow-y-auto select-none w-full h-full">
@@ -981,7 +1025,7 @@ export default function UserApp({
                               <span>✅ Delivery inside 15m</span>
                             </span>
                             <button
-                              onClick={() => { setSelectedOfferForBuy(offer); setHomeSubMode('buyOffer'); }}
+                              onClick={() => handleStartBuyOffer(offer)}
                               className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold rounded-lg transition-all shadow-md hover:shadow-blue-200 cursor-pointer"
                             >
                               Buy Now
@@ -1187,6 +1231,18 @@ export default function UserApp({
                         </p>
                       </div>
 
+                      <div className="space-y-1.5">
+                        <label className="block text-[11px] font-black text-slate-500 uppercase">আপনার পিন কোড দিন (Enter PIN) *</label>
+                        <input
+                          type="password"
+                          required
+                          placeholder="যেমন: 1234"
+                          value={buyPin}
+                          onChange={(e) => setBuyPin(e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-800 font-mono tracking-widest text-center focus:outline-none focus:border-blue-500"
+                        />
+                      </div>
+
                       <div className="flex justify-between items-center text-xs text-slate-400 font-medium pt-1">
                         <span>আপনার বর্তমান ব্যালেন্স:</span>
                         <span className="font-bold text-slate-700">{user.balance} Tk</span>
@@ -1346,12 +1402,12 @@ export default function UserApp({
                   My Offer Purchase Orders
                 </h3>
 
-                {orders.length === 0 ? (
+                {userOrders.length === 0 ? (
                   <p className="text-center text-slate-400 text-xs py-4 font-medium">কোন অফার অর্ডার করেননি এখনও।</p>
                 ) : (
                   <div className="space-y-3.5 max-h-[250px] overflow-y-auto pr-1">
-                    {[...orders].reverse().map(order => (
-                      <div key={order.id} className="p-3 bg-slate-50 rounded-xl border border-slate-100 hover:bg-slate-100 transition space-y-2">
+                    {userOrders.map(order => (
+                      <div key={order.id} className="p-3 bg-slate-50 rounded-xl border border-slate-100 hover:bg-slate-100 transition space-y-2 animate-fade-in">
                         <div className="flex justify-between items-start gap-2">
                           <div>
                             <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase ${
@@ -1375,6 +1431,10 @@ export default function UserApp({
                           <span>Target: <strong className="font-mono text-slate-800">{order.targetPhone}</strong></span>
                           <span className="font-bold text-slate-800">{order.offerPrice} Tk</span>
                         </div>
+                        <div className="flex justify-between items-center text-[9px] text-slate-400 font-medium pt-1">
+                          <span>Time: {new Date(order.createdAt).toLocaleString('en-US', { hour12: true })}</span>
+                          <span>#{order.id.slice(-6)}</span>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -1388,12 +1448,12 @@ export default function UserApp({
                   Deposit Requests Log
                 </h3>
 
-                {balanceRequests.length === 0 ? (
+                {userDeposits.length === 0 ? (
                   <p className="text-center text-slate-400 text-xs py-4 font-medium">কোনো ডিপোজিট অনুরোধ নেই।</p>
                 ) : (
                   <div className="space-y-3.5 max-h-[250px] overflow-y-auto pr-1">
-                    {[...balanceRequests].reverse().map(req => (
-                      <div key={req.id} className="p-3 bg-slate-50 rounded-xl border border-slate-100 hover:bg-slate-100 transition space-y-1.5">
+                    {userDeposits.map(req => (
+                      <div key={req.id} className="p-3 bg-slate-50 rounded-xl border border-slate-100 hover:bg-slate-100 transition space-y-1.5 animate-fade-in">
                         <div className="flex justify-between items-center">
                           <div className="flex items-center gap-1.5">
                             <span className={`px-1.5 py-0.5 rounded text-[8px] font-black text-white ${getMethodColor(req.method)}`}>
@@ -1410,9 +1470,13 @@ export default function UserApp({
                           </span>
                         </div>
 
-                        <div className="text-[10px] text-slate-400 flex justify-between items-center font-mono">
+                        <div className="text-[10px] text-slate-400 flex justify-between items-center font-mono pt-1 border-t border-slate-100/50">
                           <span>TxID: {req.transactionId}</span>
                           <span>Sender: {req.senderNumber}</span>
+                        </div>
+                        <div className="text-[9px] text-slate-400 flex justify-between items-center font-medium pt-1">
+                          <span>Time: {new Date(req.createdAt).toLocaleString('en-US', { hour12: true })}</span>
+                          <span>#{req.id.slice(-6)}</span>
                         </div>
                       </div>
                     ))}
