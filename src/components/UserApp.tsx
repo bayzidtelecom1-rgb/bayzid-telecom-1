@@ -55,6 +55,68 @@ interface UserAppProps {
   setCurrentView?: (view: 'user' | 'admin') => void;
 }
 
+export const OperatorLogo: React.FC<{ operator: string; className?: string }> = ({ operator, className = "w-6 h-6" }) => {
+  const op = operator ? operator.trim().toLowerCase() : '';
+  if (op === 'gp' || op === 'grameenphone') {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
+        <path d="M12 2C9.5 7 5.5 10 2 12C5.5 14 9.5 17 12 22C14.5 17 18.5 14 22 12C18.5 10 14.5 7 12 2Z" fill="url(#gp-grad)" />
+        <defs>
+          <linearGradient id="gp-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#00a3e0" />
+            <stop offset="100%" stopColor="#005c8a" />
+          </linearGradient>
+        </defs>
+      </svg>
+    );
+  }
+  if (op === 'robi') {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
+        <path d="M12 2L17 7L12 12L7 7Z" fill="#e21a22" />
+        <path d="M17 7L22 12L17 17L12 12Z" fill="#f7941d" />
+        <path d="M12 12L17 17L12 22L7 17Z" fill="#ffc20e" />
+        <path d="M7 7L12 12L7 17L2 12Z" fill="#e21a22" />
+      </svg>
+    );
+  }
+  if (op === 'banglalink' || op === 'bl') {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
+        <rect width="24" height="24" rx="6" fill="#f85c13" />
+        <path d="M4 18L9 6H12L7 18H4Z" fill="#ffca08" />
+        <path d="M11 18L16 6H19L14 18H11Z" fill="#ffffff" opacity="0.9" />
+        <path d="M17 18L20 11H22L19 18H17Z" fill="#ffca08" />
+      </svg>
+    );
+  }
+  if (op === 'airtel') {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
+        <rect width="24" height="24" rx="6" fill="#ee1225" />
+        <path d="M12 6C8.686 6 6 8.686 6 12C6 15.314 8.686 18 12 18C15.314 18 18 15.314 18 12C18 11 17.5 9 15 9C13 9 12 10.5 12 10.5C12 10.5 11.5 9.5 10 9.5C8 9.5 7 11 7 12.5C7 14 8 15 9.5 15C11 15 11.5 14 11.5 14C11.5 14 12 15 13.5 15C15.5 15 16.5 13 16.5 12C16.5 8.686 14.314 6 12 6Z" fill="white" />
+      </svg>
+    );
+  }
+  if (op === 'teletalk') {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
+        <circle cx="9" cy="12" r="7" fill="#39b54a" />
+        <circle cx="15" cy="12" r="7" fill="#00a651" opacity="0.8" />
+        <circle cx="12" cy="12" r="3.5" fill="#ee1c25" />
+      </svg>
+    );
+  }
+  // Fallback global icon
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`${className} text-slate-400`}>
+      <circle cx="12" cy="12" r="10" />
+      <line x1="2" y1="12" x2="22" y2="12" />
+      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+    </svg>
+  );
+};
+
 export default function UserApp({
   user,
   offers,
@@ -1024,23 +1086,29 @@ export default function UserApp({
                   {/* Operator Selector Buttons */}
                   <div className="grid grid-cols-6 gap-1.5">
                     {[
-                      { id: 'All', label: 'All', icon: '🌐' },
-                      { id: 'GP', label: 'GP', icon: '🔹' },
-                      { id: 'Robi', label: 'Robi', icon: '🛑' },
-                      { id: 'Airtel', label: 'Airtel', icon: '❤️' },
-                      { id: 'Banglalink', label: 'BL', icon: '🔸' },
-                      { id: 'Teletalk', label: 'Teletalk', icon: '🟢' },
+                      { id: 'All', label: 'All', isAll: true },
+                      { id: 'GP', label: 'GP' },
+                      { id: 'Robi', label: 'Robi' },
+                      { id: 'Airtel', label: 'Airtel' },
+                      { id: 'Banglalink', label: 'BL' },
+                      { id: 'Teletalk', label: 'Teletalk' },
                     ].map(op => (
                       <button
                         key={op.id}
                         onClick={() => setSelectedOperator(op.id as any)}
-                        className={`py-2 px-1 rounded-xl flex flex-col items-center justify-center gap-0.5 border text-center transition cursor-pointer hover:border-blue-400 ${
+                        className={`py-2 px-1 rounded-xl flex flex-col items-center justify-center gap-1.5 border text-center transition cursor-pointer hover:border-blue-400 ${
                           selectedOperator === op.id 
                             ? 'bg-blue-600 text-white border-blue-500 shadow-md font-bold' 
                             : 'bg-white text-slate-700 border-slate-100 shadow-sm'
                         }`}
                       >
-                        <span className="text-sm select-none">{op.icon}</span>
+                        {op.isAll ? (
+                          <div className={`p-0.5 rounded-full ${selectedOperator === 'All' ? 'bg-blue-500/20 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                            <Globe className="w-4 h-4" />
+                          </div>
+                        ) : (
+                          <OperatorLogo operator={op.id} className="w-4 h-4 rounded" />
+                        )}
                         <span className="text-[10px] font-bold leading-none">{op.label}</span>
                       </button>
                     ))}
@@ -1093,13 +1161,14 @@ export default function UserApp({
                           <div className="flex justify-between items-start">
                             <div>
                               <div className="flex items-center gap-1.5">
-                                <span className={`px-2 py-0.5 rounded text-[10px] font-extrabold uppercase ${
+                                <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-extrabold uppercase ${
                                   offer.operator === 'GP' ? 'bg-blue-100 text-blue-700' :
                                   offer.operator === 'Robi' ? 'bg-red-100 text-red-700' :
                                   offer.operator === 'Airtel' ? 'bg-rose-100 text-rose-700' :
                                   offer.operator === 'Banglalink' ? 'bg-orange-100 text-orange-700' : 'bg-emerald-100 text-emerald-700'
                                 }`}>
-                                  {offer.operator}
+                                  <OperatorLogo operator={offer.operator} className="w-3.5 h-3.5" />
+                                  <span>{offer.operator}</span>
                                 </span>
                                 <span className="text-[9px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-semibold">
                                   {offer.validity} Validity
@@ -1186,23 +1255,23 @@ export default function UserApp({
                         <label className="block text-[10px] font-black text-slate-400 tracking-wider uppercase">অপারেটর নির্বাচন (Operator) *</label>
                         <div className="grid grid-cols-5 gap-1.5">
                           {[
-                            { id: 'GP', label: 'GP', icon: '🔹' },
-                            { id: 'Robi', label: 'Robi', icon: '🛑' },
-                            { id: 'Airtel', label: 'Airtel', icon: '❤️' },
-                            { id: 'Banglalink', label: 'BL', icon: '🔸' },
-                            { id: 'Teletalk', label: 'Teletalk', icon: '🟢' },
+                            { id: 'GP', label: 'GP' },
+                            { id: 'Robi', label: 'Robi' },
+                            { id: 'Airtel', label: 'Airtel' },
+                            { id: 'Banglalink', label: 'BL' },
+                            { id: 'Teletalk', label: 'Teletalk' },
                           ].map(op => (
                             <button
                               key={op.id}
                               type="button"
                               onClick={() => setRechargeOperator(op.id as OperatorName)}
-                              className={`py-2 px-1 rounded-xl flex flex-col items-center justify-center gap-0.5 border text-center transition cursor-pointer hover:border-blue-400 ${
+                              className={`py-2 px-1 rounded-xl flex flex-col items-center justify-center gap-1.5 border text-center transition cursor-pointer hover:border-blue-400 ${
                                 rechargeOperator === op.id 
                                   ? 'bg-blue-600 text-white border-blue-500 shadow-md font-bold' 
                                   : 'bg-slate-50 text-slate-700 border-slate-150 shadow-sm'
                               }`}
                             >
-                              <span className="text-xs select-none">{op.icon}</span>
+                              <OperatorLogo operator={op.id} className="w-4 h-4 rounded" />
                               <span className="text-[9px] font-bold leading-none">{op.label}</span>
                             </button>
                           ))}
@@ -1294,7 +1363,10 @@ export default function UserApp({
                     <div className="bg-slate-50 p-3.5 rounded-xl space-y-2 border border-slate-100/80">
                       <div className="flex justify-between items-center text-xs">
                         <span className="font-bold text-slate-500">অপারেটর:</span>
-                        <span className="font-extrabold text-blue-600 bg-blue-50 px-2 py-0.5 rounded uppercase">{selectedOfferForBuy.operator}</span>
+                        <span className="flex items-center gap-1.5 font-extrabold text-blue-600 bg-blue-50 px-2 py-0.5 rounded uppercase">
+                          <OperatorLogo operator={selectedOfferForBuy.operator} className="w-3.5 h-3.5" />
+                          <span>{selectedOfferForBuy.operator}</span>
+                        </span>
                       </div>
                       <div className="flex justify-between items-start text-xs gap-4">
                         <span className="font-bold text-slate-500 shrink-0">অফার:</span>
@@ -1508,10 +1580,14 @@ export default function UserApp({
                       <div key={order.id} className="p-3 bg-slate-50 rounded-xl border border-slate-100 hover:bg-slate-100 transition space-y-2 animate-fade-in">
                         <div className="flex justify-between items-start gap-2">
                           <div>
-                            <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase ${
-                              order.operator === 'GP' ? 'bg-blue-600 text-white' : 'bg-red-600 text-white'
+                            <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[8px] font-black uppercase ${
+                              order.operator === 'GP' ? 'bg-blue-600 text-white' :
+                              order.operator === 'Robi' ? 'bg-red-600 text-white' :
+                              order.operator === 'Airtel' ? 'bg-rose-600 text-white' :
+                              order.operator === 'Banglalink' ? 'bg-orange-600 text-white' : 'bg-emerald-600 text-white'
                             }`}>
-                              {order.operator}
+                              <OperatorLogo operator={order.operator} className="w-3 h-3" />
+                              <span>{order.operator}</span>
                             </span>
                             <h4 className="text-xs font-extrabold text-slate-800 mt-1">{order.offerTitle}</h4>
                           </div>

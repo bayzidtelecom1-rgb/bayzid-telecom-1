@@ -26,6 +26,7 @@ import {
   Copy
 } from 'lucide-react';
 import { User, Offer, BalanceRequest, OfferOrder, AppConfig, OperatorName } from '../types';
+import { OperatorLogo } from './UserApp';
 
 interface AdminPanelProps {
   users: User[];
@@ -1245,8 +1246,9 @@ export default function AdminPanel({
                           #{order.id.slice(-6)}
                         </td>
                         <td className="py-3.5 px-4">
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${operatorColors[order.operator]}`}>
-                            {order.operator}
+                          <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-bold uppercase ${operatorColors[order.operator]}`}>
+                            <OperatorLogo operator={order.operator} className="w-3.5 h-3.5 rounded" />
+                            <span>{order.operator}</span>
                           </span>
                         </td>
                         <td className="py-3.5 px-4">
@@ -1345,13 +1347,14 @@ export default function AdminPanel({
                         key={op}
                         type="button"
                         onClick={() => setOfferOperator(op)}
-                        className={`py-2 text-xs font-bold rounded-lg cursor-pointer transition ${
+                        className={`py-2 px-1 flex flex-col items-center justify-center gap-1.5 text-xs font-bold rounded-lg cursor-pointer transition ${
                           offerOperator === op 
-                            ? 'bg-blue-600 border border-blue-400 text-white' 
+                            ? 'bg-blue-600 border border-blue-400 text-white shadow' 
                             : 'bg-slate-900 text-slate-400 border border-slate-800 hover:bg-slate-750'
                         }`}
                       >
-                        {op}
+                        <OperatorLogo operator={op} className="w-4 h-4 rounded" />
+                        <span>{op === 'Banglalink' ? 'BL' : op}</span>
                       </button>
                     ))}
                   </div>
@@ -1473,8 +1476,9 @@ export default function AdminPanel({
                     <div>
                       <div className="flex justify-between items-start gap-2">
                         <div className="flex items-center gap-1.5">
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${operatorColors[offer.operator]}`}>
-                            {offer.operator}
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase ${operatorColors[offer.operator]}`}>
+                            <OperatorLogo operator={offer.operator} className="w-3.5 h-3.5 rounded" />
+                            <span>{offer.operator}</span>
                           </span>
                           <span className="text-[9px] bg-slate-700 text-slate-300 px-1.5 py-0.5 rounded font-bold font-sans">
                             {offer.category}
