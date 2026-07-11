@@ -1925,17 +1925,16 @@ export default function UserApp({
                 >
                   না, ফিরে যান
                 </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    window.open(whatsappRedirectUrl, '_blank');
-                    setWhatsappRedirectUrl(null);
-                  }}
+                <a
+                  href={whatsappRedirectUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => setWhatsappRedirectUrl(null)}
                   className="py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition cursor-pointer text-center flex items-center justify-center gap-1.5 shadow-md shadow-emerald-100"
                 >
                   <span>হোয়াটসঅ্যাপে পাঠান</span>
                   <span className="text-sm">↗️</span>
-                </button>
+                </a>
               </div>
             </div>
           </div>
