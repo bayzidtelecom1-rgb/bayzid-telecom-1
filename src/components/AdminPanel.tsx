@@ -23,7 +23,11 @@ import {
   Bell,
   BellRing,
   LogOut,
-  Copy
+  Copy,
+  Calendar,
+  Download,
+  CheckSquare,
+  AlertTriangle
 } from 'lucide-react';
 import { User, Offer, BalanceRequest, OfferOrder, AppConfig, OperatorName } from '../types';
 import { OperatorLogo } from './UserApp';
@@ -48,6 +52,7 @@ interface AdminPanelProps {
   onDeleteAllOrders?: () => void;
   onDeleteAllDeposits?: () => void;
   onDeleteAllUsers?: () => void;
+  onBulkToggleOfferStatus?: (isActive: boolean) => void;
 }
 
 export default function AdminPanel({
@@ -70,11 +75,74 @@ export default function AdminPanel({
   onDeleteAllOrders,
   onDeleteAllDeposits,
   onDeleteAllUsers,
+  onBulkToggleOfferStatus,
 }: AdminPanelProps) {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'approvals' | 'offers' | 'orders' | 'settings'>('dashboard');
   const [searchQuery, setSearchQuery] = useState('');
   const [orderFilterTab, setOrderFilterTab] = useState<'Pending' | 'Successful' | 'Canceled'>('Pending');
   const [copiedOrderId, setCopiedOrderId] = useState<string | null>(null);
+
+  const [selectedReportDate, setSelectedReportDate] = useState<string>(() => {
+    return new Date().toISOString().split('T')[0];
+  });
+
+  const exportOrdersToCSV = () => {
+    if (orders.length === 0) {
+      alert("কোন অর্ডার ডাটা নেই!");
+      return;
+    }
+    const headers = ["Order ID", "Date", "User ID", "User Name", "Operator", "Offer Title", "Price (৳)", "Status", "Phone Line"];
+    const rows = orders.map(o => [
+      o.id,
+      o.createdAt ? o.createdAt.split('T')[0] : "",
+      o.userId,
+      o.userName || "",
+      o.operator,
+      `"${(o.offerTitle || "").replace(/"/g, '""')}"`,
+      o.offerPrice,
+      o.status,
+      `"${o.targetPhone || ""}"`
+    ]);
+    const csvContent = [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
+    
+    const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `all_orders_backup_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const exportDepositsToCSV = () => {
+    if (balanceRequests.length === 0) {
+      alert("কোন এড মানি রিকোয়েস্ট ডাটা নেই!");
+      return;
+    }
+    const headers = ["Request ID", "Date", "User ID", "User Name", "Method", "Sender Number", "Amount (৳)", "Status", "Transaction ID"];
+    const rows = balanceRequests.map(d => [
+      d.id,
+      d.createdAt ? d.createdAt.split('T')[0] : "",
+      d.userId,
+      d.userName || "",
+      d.method,
+      `"${d.senderNumber || ""}"`,
+      d.amount,
+      d.status,
+      `"${d.transactionId || ""}"`
+    ]);
+    const csvContent = [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
+    
+    const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `all_addmoney_backup_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   const handleCopyOrderDetails = (id: string, text: string) => {
     navigator.clipboard.writeText(text);
@@ -156,6 +224,23 @@ export default function AdminPanel({
   const completedSalesTotal = orders
     .filter(o => o.status === 'Successful')
     .reduce((sum, o) => sum + o.offerPrice, 0);
+
+  // Selected Date Calculation Variables
+  const filteredOrdersForDate = orders.filter(o => {
+    if (o.status !== 'Successful') return false;
+    if (!o.createdAt) return false;
+    const orderDate = o.createdAt.split('T')[0];
+    return orderDate === selectedReportDate;
+  });
+  const totalSalesForDate = filteredOrdersForDate.reduce((sum, o) => sum + o.offerPrice, 0);
+
+  const filteredDepositsForDate = balanceRequests.filter(d => {
+    if (d.status !== 'Approved') return false;
+    if (!d.createdAt) return false;
+    const depositDate = d.createdAt.split('T')[0];
+    return depositDate === selectedReportDate;
+  });
+  const totalDepositsForDate = filteredDepositsForDate.reduce((sum, d) => sum + d.amount, 0);
 
   // Automatic Sound Notification Alarm System
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
@@ -501,6 +586,51 @@ export default function AdminPanel({
                 </div>
                 <div className="p-3 bg-sky-500/10 rounded-xl text-sky-400 border border-sky-500/20">
                   <TrendingUp className="w-6 h-6" />
+                </div>
+              </div>
+            </div>
+
+            {/* Date-wise Sales and Add Money Report Section */}
+            <div className="bg-slate-800/60 border border-slate-700/50 rounded-2xl p-5 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-700/40 pb-3">
+                <div className="space-y-0.5">
+                  <h3 className="text-sm font-extrabold text-white uppercase tracking-wider flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-sky-400" />
+                    নির্দিষ্ট তারিখের হিসাব (Date-wise Report)
+                  </h3>
+                  <p className="text-[11px] text-slate-400">তারিখ সিলেক্ট করে সেই দিনের মোট সফল সেল ও এড মানির হিসাব দেখুন</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-slate-300">তারিখ নির্বাচন:</span>
+                  <input
+                    type="date"
+                    value={selectedReportDate}
+                    onChange={(e) => setSelectedReportDate(e.target.value)}
+                    className="bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500 font-bold"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* 1. Successful Sales for the date */}
+                <div className="p-4 bg-slate-900/40 border border-slate-700/30 rounded-xl space-y-1">
+                  <span className="text-[10px] font-black tracking-wider uppercase text-sky-400">সফল অফার সেল (Successful Sales)</span>
+                  <h4 className="text-2xl font-black text-white">{totalSalesForDate.toLocaleString()} ৳</h4>
+                  <p className="text-[10px] text-slate-400">মোট {filteredOrdersForDate.length} টি সফল অর্ডার ডেলিভারি</p>
+                </div>
+
+                {/* 2. Successful Add Money for the date */}
+                <div className="p-4 bg-slate-900/40 border border-slate-700/30 rounded-xl space-y-1">
+                  <span className="text-[10px] font-black tracking-wider uppercase text-emerald-400">সফল এড মানি (Successful Add Money)</span>
+                  <h4 className="text-2xl font-black text-white">{totalDepositsForDate.toLocaleString()} ৳</h4>
+                  <p className="text-[10px] text-slate-400">মোট {filteredDepositsForDate.length} টি সফল রিকোয়েস্ট অনুমোদিত</p>
+                </div>
+
+                {/* 3. Grand Total combining both */}
+                <div className="p-4 bg-blue-950/20 border border-blue-900/30 rounded-xl space-y-1">
+                  <span className="text-[10px] font-black tracking-wider uppercase text-amber-400">দিনের মোট হিসাব (Grand Total)</span>
+                  <h4 className="text-2xl font-black text-amber-300">{(totalSalesForDate + totalDepositsForDate).toLocaleString()} ৳</h4>
+                  <p className="text-[10px] text-slate-300 font-bold">অফার সেল + এড মানি এর সম্মিলিত যোগফল</p>
                 </div>
               </div>
             </div>
@@ -1465,6 +1595,64 @@ export default function AdminPanel({
                 </span>
               </div>
 
+              {/* Bulk Actions (সব অফার একসাথে চালু/বন্ধ) */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-900/60 p-3.5 rounded-xl border border-slate-700/40">
+                <div className="space-y-0.5">
+                  <span className="text-xs font-black text-slate-200 uppercase tracking-wide">সব অফার একসাথে নিয়ন্ত্রণ (Bulk Control)</span>
+                  <p className="text-[10px] text-slate-400">এক ক্লিকে সকল পাবলিশ করা অফার চালু বা বন্ধ করুন</p>
+                </div>
+                <div className="flex gap-2">
+                                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (confirm('⚠️ আপনি কি নিশ্চিত যে আপনি সব অফার একসাথে চালু (Enable) করতে চান?')) {
+                        if (onBulkToggleOfferStatus) {
+                          await onBulkToggleOfferStatus(true);
+                          alert('সব অফার সফলভাবে চালু করা হয়েছে!');
+                        } else {
+                          const inactiveOffers = offers.filter(o => !o.isActive);
+                          if (inactiveOffers.length === 0) {
+                            alert('সব অফার ইতিমধ্যেই চালু আছে!');
+                            return;
+                          }
+                          for (const offer of inactiveOffers) {
+                            onToggleOfferStatus(offer.id);
+                          }
+                          alert('সব অফার সফলভাবে চালু করা হয়েছে!');
+                        }
+                      }
+                    }}
+                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center gap-1 shadow shadow-emerald-950/40"
+                  >
+                    <CheckSquare className="w-3.5 h-3.5" /> সব চালু করুন
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (confirm('⚠️ আপনি কি নিশ্চিত যে আপনি সব অফার একসাথে বন্ধ (Disable) করতে চান?')) {
+                        if (onBulkToggleOfferStatus) {
+                          await onBulkToggleOfferStatus(false);
+                          alert('সব অফার সফলভাবে বন্ধ করা হয়েছে!');
+                        } else {
+                          const activeOffers = offers.filter(o => o.isActive);
+                          if (activeOffers.length === 0) {
+                            alert('কোন অফার চালু নেই!');
+                            return;
+                          }
+                          for (const offer of activeOffers) {
+                            onToggleOfferStatus(offer.id);
+                          }
+                          alert('সব অফার সফলভাবে বন্ধ করা হয়েছে!');
+                        }
+                      }
+                    }}
+                    className="px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center gap-1 shadow shadow-rose-950/40"
+                  >
+                    <AlertTriangle className="w-3.5 h-3.5" /> সব বন্ধ করুন
+                  </button>
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[550px] overflow-y-auto pr-1">
                 {offers.map(offer => (
                   <div 
@@ -1673,56 +1861,64 @@ export default function AdminPanel({
                   <ShieldAlert className="w-4 h-4 text-red-500" />
                   Danger Zone / Database Maintenance
                 </h3>
-                <p className="text-[11px] text-slate-400 mt-0.5">Use these operations to permanently delete demo or obsolete data. Deletion is irreversible.</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">নিচের অপারেশনগুলো ডাটা পার্মানেন্টলি ডিলিট করে দেয়। ডিলিট করার আগে এক্সেল ব্যাকআপ ডাউনলোড করে রাখুন।</p>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Delete Orders Button */}
-                <div className="p-3 bg-red-950/20 border border-red-900/30 rounded-xl space-y-2 text-center">
-                  <h4 className="text-xs font-extrabold text-slate-200">Delete All Orders</h4>
-                  <p className="text-[10px] text-slate-400 leading-tight">Clears all historical and pending orders from the database.</p>
-                  <button
-                    onClick={() => {
-                      if (confirm('⚠️ WARNING: Are you absolutely sure you want to delete ALL orders? This will wipe the order list completely and cannot be undone!')) {
-                        onDeleteAllOrders?.();
-                      }
-                    }}
-                    className="w-full py-1.5 bg-red-600/20 hover:bg-red-600 hover:text-white border border-red-500/30 text-red-400 text-[10px] font-bold rounded-lg transition cursor-pointer"
-                  >
-                    Wipe Orders
-                  </button>
+                <div className="p-4 bg-slate-900/50 border border-slate-800 rounded-xl space-y-3 flex flex-col justify-between">
+                  <div>
+                    <h4 className="text-xs font-extrabold text-slate-200">Delete All Orders (অর্ডার ডিলিট করুন)</h4>
+                    <p className="text-[10px] text-slate-400 leading-tight mt-1">ডাটাবেজ থেকে সকল সফল, পেন্ডিং ও ক্যানসেল হওয়া অর্ডারের ইতিহাস ডিলিট করুন।</p>
+                  </div>
+                  <div className="space-y-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={exportOrdersToCSV}
+                      className="w-full py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] font-bold rounded-lg border border-slate-700 flex items-center justify-center gap-1 cursor-pointer transition"
+                    >
+                      <Download className="w-3 h-3 text-sky-400" /> ব্যাকআপ ডাউনলোড করুন (Excel Export)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (confirm('⚠️ WARNING: আপনি কি নিশ্চিত যে আপনি সকল অর্ডারের ইতিহাস সম্পূর্ণ ডিলিট করতে চান? ডিলিট করার আগে এক্সেল ডাউনলোড করে ব্যাকআপ রেখেছেন তো?')) {
+                          onDeleteAllOrders?.();
+                        }
+                      }}
+                      className="w-full py-1.5 bg-red-600/10 hover:bg-red-600 hover:text-white border border-red-500/20 text-red-400 text-[10px] font-bold rounded-lg transition cursor-pointer"
+                    >
+                      সব অর্ডার মুছুন (Wipe Orders)
+                    </button>
+                  </div>
                 </div>
 
                 {/* Delete Deposits Button */}
-                <div className="p-3 bg-red-950/20 border border-red-900/30 rounded-xl space-y-2 text-center">
-                  <h4 className="text-xs font-extrabold text-slate-200">Delete All Deposits</h4>
-                  <p className="text-[10px] text-slate-400 leading-tight">Wipes all add money/deposit request history from the database.</p>
-                  <button
-                    onClick={() => {
-                      if (confirm('⚠️ WARNING: Are you absolutely sure you want to delete ALL deposit requests? This cannot be undone!')) {
-                        onDeleteAllDeposits?.();
-                      }
-                    }}
-                    className="w-full py-1.5 bg-red-600/20 hover:bg-red-600 hover:text-white border border-red-500/30 text-red-400 text-[10px] font-bold rounded-lg transition cursor-pointer"
-                  >
-                    Wipe Deposits
-                  </button>
-                </div>
-
-                {/* Delete Users Button */}
-                <div className="p-3 bg-red-950/20 border border-red-900/30 rounded-xl space-y-2 text-center">
-                  <h4 className="text-xs font-extrabold text-slate-200">Delete All Users</h4>
-                  <p className="text-[10px] text-slate-400 leading-tight">Removes all registered reseller clients (except Admin).</p>
-                  <button
-                    onClick={() => {
-                      if (confirm('⚠️ WARNING: Are you absolutely sure you want to delete ALL reseller users? Their profiles and balances will be lost!')) {
-                        onDeleteAllUsers?.();
-                      }
-                    }}
-                    className="w-full py-1.5 bg-red-600/20 hover:bg-red-600 hover:text-white border border-red-500/30 text-red-400 text-[10px] font-bold rounded-lg transition cursor-pointer"
-                  >
-                    Wipe Users
-                  </button>
+                <div className="p-4 bg-slate-900/50 border border-slate-800 rounded-xl space-y-3 flex flex-col justify-between">
+                  <div>
+                    <h4 className="text-xs font-extrabold text-slate-200">Delete All Deposits (এড মানি হিস্ট্রি ডিলিট করুন)</h4>
+                    <p className="text-[10px] text-slate-400 leading-tight mt-1">ডাটাবেজ থেকে সকল এড মানি / ডিপোজিট রিকোয়েস্ট এর ইতিহাস ডিলিট করুন।</p>
+                  </div>
+                  <div className="space-y-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={exportDepositsToCSV}
+                      className="w-full py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] font-bold rounded-lg border border-slate-700 flex items-center justify-center gap-1 cursor-pointer transition"
+                    >
+                      <Download className="w-3 h-3 text-emerald-400" /> ব্যাকআপ ডাউনলোড করুন (Excel Export)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (confirm('⚠️ WARNING: আপনি কি নিশ্চিত যে আপনি সকল এড মানি রিকোয়েস্ট ইতিহাস ডিলিট করতে চান? ডিলিট করার আগে ব্যাকআপ ডাউনলোড করেছেন তো?')) {
+                          onDeleteAllDeposits?.();
+                        }
+                      }}
+                      className="w-full py-1.5 bg-red-600/10 hover:bg-red-600 hover:text-white border border-red-500/20 text-red-400 text-[10px] font-bold rounded-lg transition cursor-pointer"
+                    >
+                      সব ডিপোজিট মুছুন (Wipe Deposits)
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>

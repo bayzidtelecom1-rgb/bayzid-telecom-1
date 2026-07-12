@@ -33,7 +33,8 @@ import {
   adminCreateUser,
   deleteAllOrders,
   deleteAllDeposits,
-  deleteAllUsersExceptAdmin
+  deleteAllUsersExceptAdmin,
+  bulkUpdateDriveOffersStatus
 } from './lib/firebaseService';
 
 const isSupabaseConfigured = () => true;
@@ -368,6 +369,22 @@ export default function App() {
     }
   };
 
+  // Callback: Admin bulk toggles all offers active status
+  const handleBulkToggleOfferStatus = async (isActive: boolean) => {
+    // 1. Update UI state instantly
+    setOffers(prev => prev.map(o => ({ ...o, isActive })));
+
+    try {
+      // 2. Perform updates in Firebase / database
+      const success = await bulkUpdateDriveOffersStatus(isActive);
+      if (success) {
+        await loadAllData();
+      }
+    } catch (err) {
+      console.warn('Bulk update error in database, fell back to local state:', err);
+    }
+  };
+
   // Callback: Admin updates offer details
   const handleUpdateOffer = async (id: string, updatedFields: Partial<Offer>) => {
     setOffers(prev => prev.map(o => o.id === id ? { ...o, ...updatedFields } : o));
@@ -526,6 +543,7 @@ export default function App() {
             onAddOffer={handleAddOffer}
             onDeleteOffer={handleDeleteOffer}
             onToggleOfferStatus={handleToggleOfferStatus}
+            onBulkToggleOfferStatus={handleBulkToggleOfferStatus}
             onUpdateOffer={handleUpdateOffer}
             onCompleteOrder={handleCompleteOrder}
             onCancelOrder={handleCancelOrder}

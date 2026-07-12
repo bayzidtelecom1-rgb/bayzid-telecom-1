@@ -197,6 +197,23 @@ export async function deleteDriveOffer(id: string): Promise<boolean> {
   }
 }
 
+export async function bulkUpdateDriveOffersStatus(isActive: boolean): Promise<boolean> {
+  try {
+    const q = query(collection(db, 'offers'));
+    const querySnapshot = await getDocs(q);
+    const promises: Promise<void>[] = [];
+    querySnapshot.forEach((docSnap) => {
+      const docRef = doc(db, 'offers', docSnap.id);
+      promises.push(setDoc(docRef, { isActive }, { merge: true }));
+    });
+    await Promise.all(promises);
+    return true;
+  } catch (err) {
+    console.warn('Error in bulkUpdateDriveOffersStatus:', err);
+    return false;
+  }
+}
+
 // 3. Resellers Profiles (Users)
 export async function fetchUsersProfiles(): Promise<User[] | null> {
   try {
