@@ -6,7 +6,7 @@ import {
   INITIAL_BALANCE_REQUESTS, 
   INITIAL_ORDERS 
 } from './data';
-import { User, Offer, BalanceRequest, OfferOrder, AppConfig } from './types';
+import { User, Offer, BalanceRequest, OfferOrder, AppConfig, OperatorName } from './types';
 import UserApp from './components/UserApp';
 import AdminPanel from './components/AdminPanel';
 import { Shield, Sparkles, Smartphone, LogOut, CheckCircle, SmartphoneIcon, User as UserIcon, Settings, Plus, RotateCcw } from 'lucide-react';
@@ -152,12 +152,111 @@ export default function App() {
 
     loadAllData();
 
-    // Subscribe to real-time events on Firebase Firestore
-    const unsubSettings = onSnapshot(collection(db, 'settings'), () => { loadAllData(); });
-    const unsubOffers = onSnapshot(collection(db, 'offers'), () => { loadAllData(); });
-    const unsubUsers = onSnapshot(collection(db, 'users'), () => { loadAllData(); });
-    const unsubDeposits = onSnapshot(collection(db, 'deposits'), () => { loadAllData(); });
-    const unsubOrders = onSnapshot(collection(db, 'orders'), () => { loadAllData(); });
+    // Subscribe to real-time events on Firebase Firestore directly for immediate updates
+    const unsubSettings = onSnapshot(collection(db, 'settings'), (snapshot) => {
+      snapshot.forEach((docSnap) => {
+        if (docSnap.id === 'app_config') {
+          const data = docSnap.data();
+          setConfig({
+            telecomName: data.telecomName || 'Bayzid Telecom',
+            bkashNumber: data.bkashNumber || '01601202721',
+            nagadNumber: data.nagadNumber || '01601202721',
+            rocketNumber: data.rocketNumber || '01601202721',
+            supportTelegram: data.supportTelegram || 'https://t.me/bayzidtelecom_bd',
+            supportWhatsapp: data.supportWhatsapp || 'https://wa.me/8801601202721',
+            supportFacebook: data.supportFacebook || 'https://facebook.com/bayzidtelecom',
+            supportYoutube: data.supportYoutube || 'https://youtube.com/c/bayzidtelecom',
+            noticeText: data.noticeText || 'বিসমিল্লাহির রহমানির রহিম। আল্লাহ ভরসা। বায়জিদ টেলিকম-এ আপনাকে স্বাগতম!'
+          });
+        }
+      });
+    });
+
+    const unsubOffers = onSnapshot(collection(db, 'offers'), (snapshot) => {
+      const dbOffers: Offer[] = [];
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        dbOffers.push({
+          id: docSnap.id,
+          operator: data.operator as OperatorName,
+          title: data.title,
+          description: data.title,
+          validity: data.validity || '30 Days',
+          originalPrice: Number(data.originalPrice) || 0,
+          offerPrice: Number(data.offerPrice) || 0,
+          category: 'Drive Pack',
+          isActive: data.isActive !== false
+        });
+      });
+      if (dbOffers.length > 0) {
+        setOffers(dbOffers);
+      } else {
+        setOffers([]);
+      }
+    });
+
+    const unsubUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
+      const dbUsers: User[] = [];
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        dbUsers.push({
+          id: docSnap.id,
+          name: data.name || docSnap.id,
+          phone: data.phone || '',
+          balance: Number(data.balance) || 0,
+          role: data.role || 'user',
+          level: data.level || 'Retailer',
+          verified: data.verified !== false,
+          deviceDetails: data.deviceDetails || 'Registered Device',
+          password: data.password || '123456',
+          pin: data.pin || '1234',
+          deviceLocked: data.deviceLocked || false,
+          twoStepEnabled: data.twoStepEnabled || false,
+        });
+      });
+      if (dbUsers.length > 0) {
+        setUsers(dbUsers);
+      }
+    });
+
+    const unsubDeposits = onSnapshot(collection(db, 'deposits'), (snapshot) => {
+      const dbDeposits: BalanceRequest[] = [];
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        dbDeposits.push({
+          id: docSnap.id,
+          userId: data.userId,
+          userName: data.userName || 'Reseller',
+          amount: Number(data.amount) || 0,
+          senderNumber: data.senderNumber || '',
+          transactionId: data.transactionId || '',
+          method: data.method as 'bKash' | 'Nagad' | 'Rocket',
+          status: data.status as 'Pending' | 'Approved' | 'Rejected',
+          createdAt: data.createdAt
+        });
+      });
+      setBalanceRequests(dbDeposits);
+    });
+
+    const unsubOrders = onSnapshot(collection(db, 'orders'), (snapshot) => {
+      const dbOrders: OfferOrder[] = [];
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        dbOrders.push({
+          id: docSnap.id,
+          userId: data.userId,
+          userName: data.userName || 'Reseller',
+          offerId: data.offerId || '',
+          offerTitle: data.offerTitle || '',
+          operator: data.operator as OperatorName,
+          offerPrice: Number(data.offerPrice) || 0,
+          targetPhone: data.targetPhone || '',
+          status: data.status as 'Pending' | 'Successful' | 'Canceled',
+          createdAt: data.createdAt
+        });
+      });
+      setOrders(dbOrders);
+    });
 
     return () => {
       unsubSettings();
