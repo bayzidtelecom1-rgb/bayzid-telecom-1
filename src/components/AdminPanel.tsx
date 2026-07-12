@@ -81,6 +81,7 @@ export default function AdminPanel({
   const [searchQuery, setSearchQuery] = useState('');
   const [orderFilterTab, setOrderFilterTab] = useState<'Pending' | 'Successful' | 'Canceled'>('Pending');
   const [copiedOrderId, setCopiedOrderId] = useState<string | null>(null);
+  const [cutOrders, setCutOrders] = useState<Record<string, boolean>>({});
 
   const [selectedReportDate, setSelectedReportDate] = useState<string>(() => {
     return new Date().toISOString().split('T')[0];
@@ -147,6 +148,7 @@ export default function AdminPanel({
   const handleCopyOrderDetails = (id: string, text: string) => {
     navigator.clipboard.writeText(text);
     setCopiedOrderId(id);
+    setCutOrders(prev => ({ ...prev, [id]: true }));
     setTimeout(() => {
       setCopiedOrderId(prev => prev === id ? null : prev);
     }, 2000);
@@ -1413,16 +1415,21 @@ export default function AdminPanel({
                             {/* Copy Info Box */}
                             <button
                               onClick={() => handleCopyOrderDetails(order.id, `${order.operator}-${order.offerTitle}-${order.targetPhone}`)}
-                              className={`px-2 py-1.5 border text-[11px] font-mono rounded-lg transition-all duration-200 cursor-pointer flex items-center gap-1.5 max-w-[220px] text-left truncate shadow-md ${
+                              className={`px-2 py-1.5 border text-[11px] font-mono rounded-lg transition-all duration-200 cursor-pointer flex items-center gap-1.5 min-w-[120px] max-w-[220px] h-8 text-left truncate shadow-md ${
                                 copiedOrderId === order.id
                                   ? 'bg-emerald-600 border-emerald-500 text-white font-extrabold scale-102'
                                   : 'bg-slate-800 hover:bg-slate-700 border-slate-700 hover:border-slate-600 text-slate-200'
                               }`}
                               title="Click to copy: Operator-Title-Number"
                             >
-                              <Copy className="w-3 h-3 shrink-0" />
-                              <span className="truncate">
-                                {copiedOrderId === order.id ? 'Copied!' : `${order.operator}-${order.offerTitle}-${order.targetPhone}`}
+                              <Copy className="w-3 h-3 shrink-0 text-slate-400" />
+                              <span className="truncate min-h-[16px] inline-block">
+                                {copiedOrderId === order.id 
+                                  ? 'Copied!' 
+                                  : cutOrders[order.id] 
+                                    ? '' 
+                                    : `${order.operator}-${order.offerTitle}-${order.targetPhone}`
+                                }
                               </span>
                             </button>
 
