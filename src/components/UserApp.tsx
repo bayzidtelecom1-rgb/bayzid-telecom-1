@@ -257,6 +257,73 @@ export default function UserApp({
   // Service Sub-mode (Drive Offer vs direct Recharge)
   const [homeSubMode, setHomeSubMode] = useState<'menu' | 'drive' | 'recharge'>('menu');
 
+  // Helper to handle on-screen back navigation safely with HTML5 History API fallback
+  const handleBackNavigation = (fallback: () => void) => {
+    if (window.history.state) {
+      window.history.back();
+    } else {
+      fallback();
+    }
+  };
+
+  // Synchronize component states with browser history for the phone's physical back button
+  const isPoppingRef = React.useRef(false);
+
+  useEffect(() => {
+    if (!isLoggedIn) return;
+
+    // Push/replace initial state on mount/login
+    const initialState = {
+      screen: activeScreen,
+      subMode: homeSubMode,
+      modal: currentModal,
+      sidebar: isSidebarOpen
+    };
+    window.history.replaceState(initialState, '');
+
+    const handlePopState = (event: PopStateEvent) => {
+      if (event.state) {
+        isPoppingRef.current = true;
+        const { screen, subMode, modal, sidebar } = event.state;
+
+        if (screen !== undefined) setActiveScreen(screen);
+        if (subMode !== undefined) setHomeSubMode(subMode);
+        setCurrentModal(modal || null);
+        setIsSidebarOpen(!!sidebar);
+
+        setTimeout(() => {
+          isPoppingRef.current = false;
+        }, 50);
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [isLoggedIn]);
+
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    if (isPoppingRef.current) return;
+
+    const currentState = window.history.state;
+    const hasChanged = !currentState || 
+      currentState.screen !== activeScreen ||
+      currentState.subMode !== homeSubMode ||
+      currentState.modal !== currentModal ||
+      currentState.sidebar !== isSidebarOpen;
+
+    if (hasChanged) {
+      window.history.pushState({
+        screen: activeScreen,
+        subMode: homeSubMode,
+        modal: currentModal,
+        sidebar: isSidebarOpen
+      }, '');
+    }
+  }, [activeScreen, homeSubMode, currentModal, isSidebarOpen, isLoggedIn]);
+
   const handleStartBuyOffer = (offer: Offer) => {
     setSelectedOfferForBuy(offer);
     setTargetNumber('');
@@ -1067,7 +1134,7 @@ export default function UserApp({
                   {/* HEADER BAR WITH BACK BUTTON */}
                   <div className="flex items-center gap-3 bg-white p-3.5 rounded-2xl border border-slate-100 shadow-sm">
                     <button
-                      onClick={() => setHomeSubMode('menu')}
+                      onClick={() => handleBackNavigation(() => setHomeSubMode('menu'))}
                       className="p-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 transition cursor-pointer animate-pulse"
                     >
                       <ArrowLeft className="w-4 h-4" />
@@ -1211,7 +1278,7 @@ export default function UserApp({
                   {/* HEADER BAR WITH BACK BUTTON */}
                   <div className="flex items-center gap-3 bg-white p-3.5 rounded-2xl border border-slate-100 shadow-sm animate-fade-in">
                     <button
-                      onClick={() => setHomeSubMode('menu')}
+                      onClick={() => handleBackNavigation(() => setHomeSubMode('menu'))}
                       className="p-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 transition cursor-pointer animate-pulse"
                     >
                       <ArrowLeft className="w-4 h-4" />
@@ -1348,7 +1415,7 @@ export default function UserApp({
                   {/* HEADER BAR WITH BACK BUTTON */}
                   <div className="flex items-center gap-3 bg-white p-3.5 rounded-2xl border border-slate-100 shadow-sm animate-fade-in">
                     <button
-                      onClick={() => { setHomeSubMode('drive'); setBuyError(''); }}
+                      onClick={() => handleBackNavigation(() => { setHomeSubMode('drive'); setBuyError(''); })}
                       className="p-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 transition cursor-pointer"
                     >
                       <ArrowLeft className="w-4 h-4" />
