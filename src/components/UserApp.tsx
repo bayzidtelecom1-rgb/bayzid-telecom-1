@@ -411,6 +411,9 @@ export default function UserApp({
 
   // Derived state: filtered offers
   const filteredOffers = offers.filter(offer => {
+    if (offer.isActive === false) {
+      return false;
+    }
     if (selectedOperator !== 'All' && offer.operator !== selectedOperator) {
       return false;
     }
