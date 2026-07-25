@@ -1,4 +1,4 @@
-export type OperatorName = 'GP' | 'Robi' | 'Airtel' | 'Banglalink' | 'Teletalk';
+export type OperatorName = 'GP' | 'Robi' | 'Airtel' | 'Banglalink' | 'Special' | 'Teletalk';
 
 export interface User {
   id: string;
@@ -26,6 +26,7 @@ export interface Offer {
   originalPrice: number;
   offerPrice: number;
   category: 'Drive Pack' | 'Regular Pack';
+  isSpecial?: boolean;
   isActive: boolean;
 }
 

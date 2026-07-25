@@ -154,6 +154,12 @@ export default function AdminPanel({
     }, 2000);
   };
   
+  // Approval status filter state (default to Pending so admin sees top requests immediately)
+  const [approvalFilterTab, setApprovalFilterTab] = useState<'Pending' | 'Approved' | 'Rejected' | 'All'>('Pending');
+  
+  // Catalog operator filter state
+  const [catalogOperatorFilter, setCatalogOperatorFilter] = useState<OperatorName | 'All'>('All');
+  
   // Offer Form state and edit mode
   const [editingOfferId, setEditingOfferId] = useState<string | null>(null);
   const [offerOperator, setOfferOperator] = useState<OperatorName>('GP');
@@ -163,6 +169,7 @@ export default function AdminPanel({
   const [offerOriginalPrice, setOfferOriginalPrice] = useState('');
   const [offerOfferPrice, setOfferOfferPrice] = useState('');
   const [offerCategory, setOfferCategory] = useState<'Drive Pack' | 'Regular Pack'>('Drive Pack');
+  const [offerIsSpecial, setOfferIsSpecial] = useState<boolean>(false);
 
   const handleStartEditOffer = (offer: Offer) => {
     setEditingOfferId(offer.id);
@@ -173,6 +180,7 @@ export default function AdminPanel({
     setOfferOriginalPrice(offer.originalPrice.toString());
     setOfferOfferPrice(offer.offerPrice.toString());
     setOfferCategory(offer.category || 'Drive Pack');
+    setOfferIsSpecial(offer.isSpecial === true || offer.operator === 'Special');
   };
 
   const handleCancelEditOffer = () => {
@@ -182,6 +190,7 @@ export default function AdminPanel({
     setOfferValidity('30 Days');
     setOfferOriginalPrice('');
     setOfferOfferPrice('');
+    setOfferIsSpecial(false);
   };
 
   // Config Form state
@@ -348,7 +357,8 @@ export default function AdminPanel({
       validity: offerValidity,
       originalPrice: Number(offerOriginalPrice),
       offerPrice: Number(offerOfferPrice),
-      category: offerCategory
+      category: offerCategory,
+      isSpecial: offerIsSpecial || offerOperator === 'Special'
     };
 
     if (editingOfferId) {
@@ -370,6 +380,7 @@ export default function AdminPanel({
     setOfferValidity('30 Days');
     setOfferOriginalPrice('');
     setOfferOfferPrice('');
+    setOfferIsSpecial(false);
   };
 
   const handleUpdateConfigSubmit = async (e: React.FormEvent) => {
@@ -383,6 +394,7 @@ export default function AdminPanel({
     'Robi': 'bg-red-600 text-white',
     'Airtel': 'bg-rose-500 text-white',
     'Banglalink': 'bg-orange-500 text-white',
+    'Special': 'bg-amber-500 text-white',
     'Teletalk': 'bg-emerald-600 text-white'
   };
 
@@ -1212,6 +1224,31 @@ export default function AdminPanel({
               </div>
             </div>
 
+            {/* Add Money status sub-tabs */}
+            <div className="flex border-b border-slate-700/60 gap-4 pb-2">
+              {(['Pending', 'Approved', 'Rejected', 'All'] as const).map(tab => {
+                const count = tab === 'All' 
+                  ? balanceRequests.length 
+                  : balanceRequests.filter(r => r.status === tab).length;
+                return (
+                  <button
+                    key={tab}
+                    onClick={() => setApprovalFilterTab(tab)}
+                    className={`pb-2 px-1 text-xs font-bold transition-all relative cursor-pointer ${
+                      approvalFilterTab === tab 
+                        ? 'text-emerald-400 border-b-2 border-emerald-500 font-extrabold' 
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    {tab === 'Pending' ? 'পেন্ডিং (Pending)' : tab === 'Approved' ? 'সাক্সেস (Approved)' : tab === 'Rejected' ? 'বাতিল (Rejected)' : 'সব (All)'}
+                    <span className="ml-1.5 px-1.5 py-0.2 bg-slate-900 border border-slate-700 text-[10px] text-slate-300 rounded-full font-mono font-bold">
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
@@ -1229,6 +1266,9 @@ export default function AdminPanel({
                 <tbody className="divide-y divide-slate-700/50">
                   {balanceRequests
                     .filter(r => {
+                      if (approvalFilterTab !== 'All' && r.status !== approvalFilterTab) {
+                        return false;
+                      }
                       if (!searchQuery) return true;
                       const q = searchQuery.toLowerCase();
                       return r.userName.toLowerCase().includes(q) || 
@@ -1236,6 +1276,7 @@ export default function AdminPanel({
                              r.senderNumber.includes(q) ||
                              r.method.toLowerCase().includes(q);
                     })
+                    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
                     .map(req => (
                       <tr key={req.id} className="hover:bg-slate-750 transition">
                         <td className="py-3.5 px-4">
@@ -1479,11 +1520,14 @@ export default function AdminPanel({
                 <div>
                   <label className="block text-[11px] font-bold text-slate-300 uppercase mb-1">Select Telecom Operator *</label>
                   <div className="grid grid-cols-5 gap-1.5">
-                    {(['GP', 'Robi', 'Airtel', 'Banglalink', 'Teletalk'] as OperatorName[]).map(op => (
+                    {(['GP', 'Robi', 'Airtel', 'Banglalink', 'Special'] as OperatorName[]).map(op => (
                       <button
                         key={op}
                         type="button"
-                        onClick={() => setOfferOperator(op)}
+                        onClick={() => {
+                          setOfferOperator(op);
+                          if (op === 'Special') setOfferIsSpecial(true);
+                        }}
                         className={`py-2 px-1 flex flex-col items-center justify-center gap-1.5 text-xs font-bold rounded-lg cursor-pointer transition ${
                           offerOperator === op 
                             ? 'bg-blue-600 border border-blue-400 text-white shadow' 
@@ -1535,12 +1579,25 @@ export default function AdminPanel({
                   <div>
                     <label className="block text-[11px] font-bold text-slate-300 uppercase mb-1">Pack Type *</label>
                     <select
-                      value={offerCategory}
-                      onChange={(e) => setOfferCategory(e.target.value as any)}
+                      value={offerIsSpecial ? 'Drive / Special' : offerCategory}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === 'Drive / Special') {
+                          setOfferCategory('Drive Pack');
+                          setOfferIsSpecial(true);
+                        } else if (val === 'Regular Pack') {
+                          setOfferCategory('Regular Pack');
+                          setOfferIsSpecial(false);
+                        } else {
+                          setOfferCategory('Drive Pack');
+                          setOfferIsSpecial(false);
+                        }
+                      }}
                       className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-blue-500"
                     >
-                      <option value="Drive Pack">Drive Pack</option>
-                      <option value="Regular Pack">Regular Pack</option>
+                      <option value="Drive Pack">Drive Pack (ড্রাইভ)</option>
+                      <option value="Drive / Special">Drive / Special (ড্রাইভ ও স্পেশাল)</option>
+                      <option value="Regular Pack">Regular Pack (রেগুলার)</option>
                     </select>
                   </div>
                 </div>
@@ -1592,76 +1649,126 @@ export default function AdminPanel({
 
             {/* Offer catalog editor */}
             <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-5 lg:col-span-2 space-y-4">
-              <div className="flex justify-between items-center border-b border-slate-700 pb-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-700 pb-3">
                 <div>
                   <h2 className="text-md font-bold text-white">Published Packages & Drive Catalog</h2>
-                  <p className="text-xs text-slate-400 mt-0.5">Below is the live catalog visible to your clients. Delete or toggle dynamic active states.</p>
+                  <p className="text-xs text-slate-400 mt-0.5">Below is the live catalog visible to your clients. Filter by operator or toggle active states.</p>
                 </div>
-                <span className="bg-slate-900 px-3 py-1 rounded-full text-xs text-slate-300 border border-slate-800 font-mono">
-                  {offers.length} Offers
+                <span className="bg-slate-900 px-3 py-1 rounded-full text-xs text-slate-300 border border-slate-800 font-mono w-fit">
+                  {offers.filter(o => {
+                    if (catalogOperatorFilter === 'All') return true;
+                    if (catalogOperatorFilter === 'Special') return o.operator === 'Special' || o.isSpecial === true;
+                    return o.operator === catalogOperatorFilter;
+                  }).length} / {offers.length} Offers
                 </span>
               </div>
 
-              {/* Bulk Actions (সব অফার একসাথে চালু/বন্ধ) */}
+              {/* Operator Filter Bar */}
+              <div className="flex flex-wrap items-center gap-1.5 bg-slate-900/80 p-1.5 rounded-xl border border-slate-700/60">
+                <span className="text-[11px] font-extrabold text-slate-400 px-2 uppercase">ফিল্টার:</span>
+                {(['All', 'GP', 'Robi', 'Airtel', 'Banglalink', 'Special'] as const).map(op => (
+                  <button
+                    key={op}
+                    type="button"
+                    onClick={() => setCatalogOperatorFilter(op)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                      catalogOperatorFilter === op 
+                        ? 'bg-blue-600 text-white shadow shadow-blue-900/40' 
+                        : 'bg-slate-800 text-slate-300 hover:bg-slate-750'
+                    }`}
+                  >
+                    {op !== 'All' && <OperatorLogo operator={op as OperatorName} className="w-3.5 h-3.5 rounded" />}
+                    <span>{op === 'All' ? 'সব অফার (All)' : op === 'Special' ? 'Special (স্পেশাল)' : op}</span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Bulk Actions (সিলেক্টেড অপরেটর এর অফার একসাথে চালু/বন্ধ) */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-900/60 p-3.5 rounded-xl border border-slate-700/40">
                 <div className="space-y-0.5">
-                  <span className="text-xs font-black text-slate-200 uppercase tracking-wide">সব অফার একসাথে নিয়ন্ত্রণ (Bulk Control)</span>
-                  <p className="text-[10px] text-slate-400">এক ক্লিকে সকল পাবলিশ করা অফার চালু বা বন্ধ করুন</p>
+                  <span className="text-xs font-black text-slate-200 uppercase tracking-wide">
+                    {catalogOperatorFilter === 'All' ? 'সকল অফার বাল্ক কন্ট্রোল' : `${catalogOperatorFilter} অফার বাল্ক কন্ট্রোল`}
+                  </span>
+                  <p className="text-[10px] text-slate-400">
+                    {catalogOperatorFilter === 'All' 
+                      ? 'এক ক্লিকে সকল পাবলিশ করা অফার চালু বা বন্ধ করুন' 
+                      : `এক ক্লিকে শুধু ${catalogOperatorFilter} অপরেটরের সব অফার চালু বা বন্ধ করুন`}
+                  </p>
                 </div>
                 <div className="flex gap-2">
-                                  <button
+                  <button
                     type="button"
                     onClick={async () => {
-                      if (confirm('⚠️ আপনি কি নিশ্চিত যে আপনি সব অফার একসাথে চালু (Enable) করতে চান?')) {
-                        if (onBulkToggleOfferStatus) {
-                          await onBulkToggleOfferStatus(true);
-                          alert('সব অফার সফলভাবে চালু করা হয়েছে!');
-                        } else {
-                          const inactiveOffers = offers.filter(o => !o.isActive);
-                          if (inactiveOffers.length === 0) {
-                            alert('সব অফার ইতিমধ্যেই চালু আছে!');
-                            return;
-                          }
-                          for (const offer of inactiveOffers) {
-                            onToggleOfferStatus(offer.id);
-                          }
-                          alert('সব অফার সফলভাবে চালু করা হয়েছে!');
+                      const targetOffers = offers.filter(o => {
+                        if (catalogOperatorFilter === 'All') return true;
+                        if (catalogOperatorFilter === 'Special') return o.operator === 'Special' || o.isSpecial === true;
+                        return o.operator === catalogOperatorFilter;
+                      });
+
+                      if (targetOffers.length === 0) {
+                        alert('এই ক্যাটাগরিতে কোন অফার পাওয়া যায়নি!');
+                        return;
+                      }
+
+                      const opLabel = catalogOperatorFilter === 'All' ? 'সব' : catalogOperatorFilter;
+                      if (confirm(`⚠️ আপনি কি নিশ্চিত যে আপনি ${opLabel} এর সব অফার একসাথে চালু (Enable) করতে চান?`)) {
+                        const inactiveOffers = targetOffers.filter(o => !o.isActive);
+                        if (inactiveOffers.length === 0) {
+                          alert(`সকল ${opLabel} অফার ইতিমধ্যেই চালু আছে!`);
+                          return;
                         }
+                        for (const offer of inactiveOffers) {
+                          await onToggleOfferStatus(offer.id);
+                        }
+                        alert(`${opLabel} এর ${inactiveOffers.length} টি অফার সফলভাবে চালু করা হয়েছে!`);
                       }
                     }}
                     className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center gap-1 shadow shadow-emerald-950/40"
                   >
-                    <CheckSquare className="w-3.5 h-3.5" /> সব চালু করুন
+                    <CheckSquare className="w-3.5 h-3.5" /> {catalogOperatorFilter === 'All' ? 'সব চালু করুন' : `${catalogOperatorFilter} চালু করুন`}
                   </button>
                   <button
                     type="button"
                     onClick={async () => {
-                      if (confirm('⚠️ আপনি কি নিশ্চিত যে আপনি সব অফার একসাথে বন্ধ (Disable) করতে চান?')) {
-                        if (onBulkToggleOfferStatus) {
-                          await onBulkToggleOfferStatus(false);
-                          alert('সব অফার সফলভাবে বন্ধ করা হয়েছে!');
-                        } else {
-                          const activeOffers = offers.filter(o => o.isActive);
-                          if (activeOffers.length === 0) {
-                            alert('কোন অফার চালু নেই!');
-                            return;
-                          }
-                          for (const offer of activeOffers) {
-                            onToggleOfferStatus(offer.id);
-                          }
-                          alert('সব অফার সফলভাবে বন্ধ করা হয়েছে!');
+                      const targetOffers = offers.filter(o => {
+                        if (catalogOperatorFilter === 'All') return true;
+                        if (catalogOperatorFilter === 'Special') return o.operator === 'Special' || o.isSpecial === true;
+                        return o.operator === catalogOperatorFilter;
+                      });
+
+                      if (targetOffers.length === 0) {
+                        alert('এই ক্যাটাগরিতে কোন অফার পাওয়া যায়নি!');
+                        return;
+                      }
+
+                      const opLabel = catalogOperatorFilter === 'All' ? 'সব' : catalogOperatorFilter;
+                      if (confirm(`⚠️ আপনি কি নিশ্চিত যে আপনি ${opLabel} এর সব অফার একসাথে বন্ধ (Disable) করতে চান?`)) {
+                        const activeOffers = targetOffers.filter(o => o.isActive);
+                        if (activeOffers.length === 0) {
+                          alert(`কোন ${opLabel} অফার চালু নেই!`);
+                          return;
                         }
+                        for (const offer of activeOffers) {
+                          await onToggleOfferStatus(offer.id);
+                        }
+                        alert(`${opLabel} এর ${activeOffers.length} টি অফার সফলভাবে বন্ধ করা হয়েছে!`);
                       }
                     }}
                     className="px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center gap-1 shadow shadow-rose-950/40"
                   >
-                    <AlertTriangle className="w-3.5 h-3.5" /> সব বন্ধ করুন
+                    <AlertTriangle className="w-3.5 h-3.5" /> {catalogOperatorFilter === 'All' ? 'সব বন্ধ করুন' : `${catalogOperatorFilter} বন্ধ করুন`}
                   </button>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[550px] overflow-y-auto pr-1">
-                {offers.map(offer => (
+                {offers
+                  .filter(offer => {
+                    if (catalogOperatorFilter === 'All') return true;
+                    if (catalogOperatorFilter === 'Special') return offer.operator === 'Special' || offer.isSpecial === true;
+                    return offer.operator === catalogOperatorFilter;
+                  })
+                  .map(offer => (
                   <div 
                     key={offer.id} 
                     className={`p-3.5 bg-slate-850 border rounded-xl flex flex-col justify-between gap-3 hover:border-slate-600 transition ${

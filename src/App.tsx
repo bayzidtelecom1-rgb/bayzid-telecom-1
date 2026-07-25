@@ -178,13 +178,14 @@ export default function App() {
         const data = docSnap.data();
         dbOffers.push({
           id: docSnap.id,
-          operator: data.operator as OperatorName,
-          title: data.title,
-          description: data.title,
+          operator: (data.operator || 'GP') as OperatorName,
+          title: data.title || '',
+          description: data.description || data.title || '',
           validity: data.validity || '30 Days',
           originalPrice: Number(data.originalPrice) || 0,
           offerPrice: Number(data.offerPrice) || 0,
-          category: 'Drive Pack',
+          category: data.category === 'Regular Pack' ? 'Regular Pack' : 'Drive Pack',
+          isSpecial: data.isSpecial === true || data.operator === 'Special',
           isActive: data.isActive !== false
         });
       });

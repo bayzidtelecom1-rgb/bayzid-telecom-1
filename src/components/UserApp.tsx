@@ -414,8 +414,12 @@ export default function UserApp({
     if (offer.isActive === false) {
       return false;
     }
-    if (selectedOperator !== 'All' && offer.operator !== selectedOperator) {
-      return false;
+    if (selectedOperator !== 'All') {
+      if (selectedOperator === 'Special') {
+        if (offer.operator !== 'Special' && !offer.isSpecial) return false;
+      } else if (offer.operator !== selectedOperator) {
+        return false;
+      }
     }
     if (offer.category !== activeTab) {
       return false;
@@ -964,7 +968,7 @@ export default function UserApp({
             </div>
 
             {/* Dynamic Screen View Content */}
-            <div className="flex-1 overflow-y-auto bg-slate-50 pb-20">
+            <div className="flex-1 overflow-y-auto bg-slate-50 pb-20 touch-pan-y overscroll-contain" style={{ WebkitOverflowScrolling: 'touch' }}>
           
           {/* SCREEN 1: HOME PANEL */}
           {activeScreen === 'home' && (
@@ -1161,7 +1165,7 @@ export default function UserApp({
                       { id: 'Robi', label: 'Robi' },
                       { id: 'Airtel', label: 'Airtel' },
                       { id: 'Banglalink', label: 'BL' },
-                      { id: 'Teletalk', label: 'Teletalk' },
+                      { id: 'Special', label: 'Special' },
                     ].map(op => (
                       <button
                         key={op.id}
@@ -1504,7 +1508,7 @@ export default function UserApp({
 
           {/* SCREEN 2: ADD BALANCE (MANUAL CASH SUBMISSION) */}
           {activeScreen === 'recharge' && (
-            <div className="p-4 space-y-4">
+            <div className="p-4 space-y-4 touch-pan-y overscroll-contain">
               <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 text-center">
                 <h2 className="text-sm font-black text-slate-800">Add Balance (bKash/Nagad/Rocket)</h2>
                 <p className="text-[11px] text-slate-400 mt-1">নিচের এডমিন একাউন্টে টাকা পাঠিয়ে ফরমটি পূরণ করুন।</p>
