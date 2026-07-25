@@ -1089,17 +1089,24 @@ export default function UserApp({
                   </div>
 
                   {/* Dynamic Slides / Services banner */}
-                  <div className="relative rounded-2xl overflow-hidden shadow-sm h-28 bg-gradient-to-r from-blue-700 to-sky-500 p-4 text-white flex flex-col justify-between">
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      setSelectedOperator('Special');
+                      setHomeSubMode('drive');
+                    }}
+                    className="w-full text-left relative rounded-2xl overflow-hidden shadow-sm h-28 bg-gradient-to-r from-amber-600 via-orange-500 to-amber-500 p-4 text-white flex flex-col justify-between cursor-pointer hover:opacity-95 transition active:scale-[0.99] border border-amber-400/30"
+                  >
                     <div>
-                      <span className="px-2 py-0.5 rounded bg-red-500 text-[9px] font-black uppercase tracking-widest">Mega Offer</span>
-                      <h4 className="text-xs font-black mt-1 uppercase">সবচেয়ে কম মূল্যে ড্রাইভে সেরা ডিসকাউন্ট</h4>
-                      <p className="text-[9px] text-blue-100 mt-0.5">১০০% গ্যারান্টিড রিচার্জ ও ইনস্ট্যান্ট ডেলিভারি!</p>
+                      <span className="px-2 py-0.5 rounded bg-red-600 text-[9px] font-black uppercase tracking-widest shadow-sm">SPECIAL OFFER</span>
+                      <h4 className="text-xs font-black mt-1 uppercase text-white drop-shadow-sm">সবচেয়ে কম মূল্যে ড্রাইভে সেরা ডিসকাউন্ট (Special Offer)</h4>
+                      <p className="text-[9.5px] text-amber-100 font-bold mt-0.5">১০০% গ্যারান্টিড রিচার্জ ও ইনস্ট্যান্ট ডেলিভারি! ক্লিক করে অফার দেখুন</p>
                     </div>
-                    <div className="flex justify-between items-center text-[10px] text-blue-200">
-                      <span>Support: 24/7 Available</span>
-                      <span className="font-extrabold bg-white/20 px-2 py-0.5 rounded-full text-white">Today Hot Deals 🔥</span>
+                    <div className="flex justify-between items-center text-[10px] text-amber-100">
+                      <span className="font-medium">Support: 24/7 Available</span>
+                      <span className="font-extrabold bg-white/25 px-2 py-0.5 rounded-full text-white shadow-sm flex items-center gap-1">Today Special Deals 🔥</span>
                     </div>
-                  </div>
+                  </button>
 
                   {/* SERVICE CATEGORY BUTTONS */}
                   <div className="space-y-3 pt-1">
@@ -1107,14 +1114,14 @@ export default function UserApp({
                     <div className="grid grid-cols-2 gap-3">
                       <button
                         onClick={() => setHomeSubMode('drive')}
-                        className="p-4 bg-gradient-to-br from-amber-500 to-rose-600 rounded-2xl text-left text-white shadow-md hover:shadow-lg transition transform active:scale-95 flex flex-col justify-between h-32 cursor-pointer border border-transparent"
+                        className="p-4 bg-gradient-to-br from-amber-500 via-orange-500 to-rose-600 rounded-2xl text-left text-white shadow-lg hover:shadow-xl transition transform active:scale-95 flex flex-col justify-between h-32 cursor-pointer border border-amber-300/40"
                       >
-                        <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-xl shadow-inner">
+                        <div className="w-10 h-10 rounded-full bg-white/25 flex items-center justify-center text-xl shadow-inner font-extrabold">
                           🔥
                         </div>
                         <div>
-                          <h4 className="font-extrabold text-xs tracking-wide">ড্রাইভ অফার</h4>
-                          <p className="text-[9px] text-amber-100 mt-0.5 leading-tight font-medium">আকর্ষণীয় ডিসকাউন্ট প্যাক</p>
+                          <h4 className="font-black text-sm tracking-wide text-white drop-shadow-sm">অল অফার</h4>
+                          <p className="text-[10px] text-amber-100 mt-0.5 leading-tight font-extrabold">আকর্ষণীয় সকল ডিসকাউন্ট প্যাক</p>
                         </div>
                       </button>
 
@@ -1147,7 +1154,7 @@ export default function UserApp({
                       <ArrowLeft className="w-4 h-4" />
                     </button>
                     <div>
-                      <h3 className="text-xs font-black text-slate-800 uppercase tracking-wide">ড্রাইভ অফার সমূহ (Drive Offers)</h3>
+                      <h3 className="text-xs font-black text-slate-800 uppercase tracking-wide">সকল অফার সমূহ (All Offers)</h3>
                       <p className="text-[9px] text-slate-400 font-bold mt-0.5">অপারেটর সিলেক্ট করে অফার কিনুন</p>
                     </div>
                   </div>
