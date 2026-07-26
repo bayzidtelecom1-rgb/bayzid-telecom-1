@@ -791,19 +791,25 @@ export default function AdminPanel({
                           
                           <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-end">
                             <span className="text-md font-bold text-amber-400">{order.offerPrice} Tk</span>
-                            <div className="flex gap-1.5">
-                              <button
-                                onClick={() => onCompleteOrder(order.id)}
-                                className="px-3 py-1 bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold rounded flex items-center gap-1 transition cursor-pointer"
-                              >
-                                <Check className="w-3.5 h-3.5" /> Dispatch/Done
-                              </button>
-                              <button
-                                onClick={() => onCancelOrder(order.id)}
-                                className="px-2 py-1 bg-red-600/80 hover:bg-red-500 text-white text-xs font-bold rounded transition cursor-pointer"
-                              >
-                                Cancel & Refund
-                              </button>
+                            <div className="flex gap-1.5 flex-wrap justify-end">
+                              {order.status !== 'Successful' && (
+                                <button
+                                  onClick={() => onCompleteOrder(order.id)}
+                                  className="px-2.5 py-1 bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold rounded flex items-center gap-1 transition cursor-pointer shadow-sm"
+                                  title="Approve order"
+                                >
+                                  <Check className="w-3.5 h-3.5" /> {order.status === 'Canceled' ? 'Re-Approve' : 'Done'}
+                                </button>
+                              )}
+                              {order.status !== 'Canceled' && (
+                                <button
+                                  onClick={() => onCancelOrder(order.id)}
+                                  className="px-2.5 py-1 bg-red-600/80 hover:bg-red-500 text-white text-xs font-bold rounded flex items-center gap-1 transition cursor-pointer shadow-sm"
+                                  title="Cancel & Refund order"
+                                >
+                                  <XCircle className="w-3.5 h-3.5" /> {order.status === 'Successful' ? 'Cancel & Refund' : 'Cancel & Refund'}
+                                </button>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -1334,24 +1340,26 @@ export default function AdminPanel({
                           </span>
                         </td>
                         <td className="py-3.5 px-4 text-right">
-                          {req.status === 'Pending' ? (
-                            <div className="flex gap-1.5 justify-end">
+                          <div className="flex gap-1.5 justify-end flex-wrap">
+                            {req.status !== 'Approved' && (
                               <button
                                 onClick={() => onApproveBalance(req.id)}
-                                className="p-1 px-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded text-[11px] flex items-center gap-1 cursor-pointer"
+                                className="p-1 px-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded text-[11px] flex items-center gap-1 cursor-pointer transition shadow-sm"
+                                title="Approve deposit request"
                               >
-                                <Check className="w-3 h-3" /> Approve
+                                <Check className="w-3 h-3" /> {req.status === 'Rejected' ? 'পুনরায় এপ্রুভ' : 'Approve'}
                               </button>
+                            )}
+                            {req.status !== 'Rejected' && (
                               <button
                                 onClick={() => onRejectBalance(req.id)}
-                                className="p-1 px-2.5 bg-red-600/80 hover:bg-red-500 text-white font-semibold rounded text-[11px] flex items-center gap-1 cursor-pointer"
+                                className="p-1 px-2.5 bg-red-600/80 hover:bg-red-500 text-white font-semibold rounded text-[11px] flex items-center gap-1 cursor-pointer transition shadow-sm"
+                                title="Reject deposit request"
                               >
-                                <XCircle className="w-3 h-3" /> Reject
+                                <XCircle className="w-3 h-3" /> {req.status === 'Approved' ? 'বাতিল & কর্তন' : 'Reject'}
                               </button>
-                            </div>
-                          ) : (
-                            <span className="text-slate-500 italic text-[11px]">Processed</span>
-                          )}
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -1492,24 +1500,26 @@ export default function AdminPanel({
                               </span>
                             </button>
 
-                            {order.status === 'Pending' ? (
-                              <div className="flex gap-1 justify-end">
+                            <div className="flex gap-1.5 justify-end flex-wrap">
+                              {order.status !== 'Successful' && (
                                 <button
                                   onClick={() => onCompleteOrder(order.id)}
-                                  className="px-2 py-1 bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold rounded flex items-center gap-1 transition cursor-pointer"
+                                  className="px-2.5 py-1 bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold rounded flex items-center gap-1 transition cursor-pointer shadow-sm"
+                                  title="Approve / Complete Order"
                                 >
-                                  <Check className="w-3.5 h-3.5" /> Done
+                                  <Check className="w-3.5 h-3.5" /> {order.status === 'Canceled' ? 'পুনরায় এপ্রুভ' : 'Done'}
                                 </button>
+                              )}
+                              {order.status !== 'Canceled' && (
                                 <button
                                   onClick={() => onCancelOrder(order.id)}
-                                  className="px-2 py-1 bg-red-600 hover:bg-red-500 text-white text-xs font-bold rounded transition cursor-pointer"
+                                  className="px-2.5 py-1 bg-red-600 hover:bg-red-500 text-white text-xs font-bold rounded flex items-center gap-1 transition cursor-pointer shadow-sm"
+                                  title="Cancel Order & Refund User"
                                 >
-                                  Cancel & Refund
+                                  <XCircle className="w-3.5 h-3.5" /> {order.status === 'Successful' ? 'কেন্সিল & রিফান্ড' : 'Cancel & Refund'}
                                 </button>
-                              </div>
-                            ) : (
-                              <span className="text-slate-500 italic text-[11px]">Processed</span>
-                            )}
+                              )}
+                            </div>
                           </div>
                         </td>
                       </tr>

@@ -395,8 +395,8 @@ export async function approveDepositRequest(depositId: string, amount: number): 
       }
 
       const depositData = depositSnap.data();
-      if (depositData.status !== 'Pending') {
-        throw new Error('Deposit is not pending');
+      if (depositData.status === 'Approved') {
+        return;
       }
 
       const userId = depositData.userId;
@@ -417,19 +417,59 @@ export async function approveDepositRequest(depositId: string, amount: number): 
     return true;
   } catch (err) {
     console.warn('Transaction failed for approving deposit:', err);
-    return false;
+    try {
+      const docRef = doc(db, 'deposits', depositId);
+      await updateDoc(docRef, { status: 'Approved' });
+      return true;
+    } catch (e) {
+      return false;
+    }
   }
 }
 
 export async function rejectDepositRequest(depositId: string): Promise<boolean> {
   if (!db) return false;
   try {
-    const docRef = doc(db, 'deposits', depositId);
-    await updateDoc(docRef, { status: 'Rejected' });
+    await runTransaction(db, async (transaction) => {
+      const depositRef = doc(db, 'deposits', depositId);
+      const depositSnap = await transaction.get(depositRef);
+
+      if (!depositSnap.exists()) {
+        throw new Error('Deposit record does not exist');
+      }
+
+      const depositData = depositSnap.data();
+      const prevStatus = depositData.status;
+
+      if (prevStatus === 'Rejected') {
+        return;
+      }
+
+      if (prevStatus === 'Approved') {
+        const userId = depositData.userId;
+        const amount = Number(depositData.amount) || 0;
+        const userRef = doc(db, 'users', userId);
+        const userSnap = await transaction.get(userRef);
+
+        if (userSnap.exists()) {
+          const currentBalance = Number(userSnap.data().balance) || 0;
+          transaction.update(userRef, { balance: Math.max(0, currentBalance - amount) });
+        }
+      }
+
+      transaction.update(depositRef, { status: 'Rejected' });
+    });
+
     return true;
   } catch (err) {
     console.warn('Error rejecting deposit request:', err);
-    return false;
+    try {
+      const docRef = doc(db, 'deposits', depositId);
+      await updateDoc(docRef, { status: 'Rejected' });
+      return true;
+    } catch(e) {
+      return false;
+    }
   }
 }
 
@@ -533,12 +573,45 @@ export async function purchaseOfferRPC(
 export async function completeOrder(orderId: string): Promise<boolean> {
   if (!db) return false;
   try {
-    const docRef = doc(db, 'orders', orderId);
-    await updateDoc(docRef, { status: 'Successful' });
+    await runTransaction(db, async (transaction) => {
+      const orderRef = doc(db, 'orders', orderId);
+      const orderSnap = await transaction.get(orderRef);
+
+      if (!orderSnap.exists()) {
+        throw new Error('Order not found');
+      }
+
+      const orderData = orderSnap.data();
+      const prevStatus = orderData.status;
+
+      if (prevStatus === 'Successful') {
+        return;
+      }
+
+      if (prevStatus === 'Canceled') {
+        const userId = orderData.userId;
+        const offerPrice = Number(orderData.offerPrice) || 0;
+        const userRef = doc(db, 'users', userId);
+        const userSnap = await transaction.get(userRef);
+
+        if (userSnap.exists()) {
+          const currentBalance = Number(userSnap.data().balance) || 0;
+          transaction.update(userRef, { balance: Math.max(0, currentBalance - offerPrice) });
+        }
+      }
+
+      transaction.update(orderRef, { status: 'Successful' });
+    });
     return true;
   } catch (err) {
     console.warn('Error completing order:', err);
-    return false;
+    try {
+      const docRef = doc(db, 'orders', orderId);
+      await updateDoc(docRef, { status: 'Successful' });
+      return true;
+    } catch(e) {
+      return false;
+    }
   }
 }
 
@@ -554,21 +627,21 @@ export async function cancelAndRefundOrderRPC(orderId: string, refundAmount: num
       }
 
       const orderData = orderSnap.data();
-      if (orderData.status !== 'Pending') {
-        throw new Error('Order is not pending');
+      const prevStatus = orderData.status;
+
+      if (prevStatus === 'Canceled') {
+        return;
       }
 
       const userId = orderData.userId;
       const userRef = doc(db, 'users', userId);
       const userSnap = await transaction.get(userRef);
 
-      if (!userSnap.exists()) {
-        throw new Error('User profile not found for refund');
+      if (userSnap.exists()) {
+        const currentBalance = Number(userSnap.data().balance) || 0;
+        transaction.update(userRef, { balance: currentBalance + refundAmount });
       }
 
-      const currentBalance = Number(userSnap.data().balance) || 0;
-
-      transaction.update(userRef, { balance: currentBalance + refundAmount });
       transaction.update(orderRef, { status: 'Canceled' });
     });
 

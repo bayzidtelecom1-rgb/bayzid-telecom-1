@@ -551,20 +551,44 @@ export default function App() {
 
   // Callback: Admin dispatches / completes SIM order
   const handleCompleteOrder = async (id: string) => {
+    const order = orders.find(o => o.id === id);
+    if (!order) return;
+
+    if (order.status === 'Successful') {
+      alert('অর্ডারটি ইতিপূর্বে এপ্রুভ করা হয়েছে।');
+      return;
+    }
+
+    // If order was previously 'Canceled', deduct price from user wallet since they were refunded before
+    if (order.status === 'Canceled') {
+      setUsers(prevUsers => prevUsers.map(u => {
+        if (u.id === order.userId) {
+          return { ...u, balance: Math.max(0, u.balance - order.offerPrice) };
+        }
+        return u;
+      }));
+    }
+
     setOrders(prev => prev.map(o => o.id === id ? { ...o, status: 'Successful' } : o));
 
     const success = await completeOrder(id);
     if (success) {
       loadAllData();
+      alert(`অর্ডার #${id.slice(-6)} সফলভাবে এপ্রুভ/সাক্সেস করা হলো!`);
     } else {
-      console.warn('Local update only (Supabase offline)');
+      console.warn('Local update only');
     }
   };
 
   // Callback: Admin cancels SIM order and refunds money to reseller's wallet
   const handleCancelOrder = async (id: string) => {
     const order = orders.find(o => o.id === id);
-    if (!order || order.status !== 'Pending') return;
+    if (!order) return;
+
+    if (order.status === 'Canceled') {
+      alert('অর্ডারটি ইতিপূর্বে কেন্সিল করা হয়েছে।');
+      return;
+    }
 
     // Refund client wallet locally
     setUsers(prevUsers => prevUsers.map(u => {
@@ -578,7 +602,7 @@ export default function App() {
     const success = await cancelAndRefundOrderRPC(id, order.offerPrice);
     if (success) {
       loadAllData();
-      alert(`Order refunded successfully! ${order.offerPrice} Tk returned to ${order.userName}'s wallet via Supabase RPC.`);
+      alert(`অর্ডার #${id.slice(-6)} কেন্সিল করা হলো এবং ${order.offerPrice} টাকা গ্রাহক ${order.userName}-এর ওয়ালেটে রিফান্ড করা হলো!`);
     } else {
       alert(`Order refunded locally! ${order.offerPrice} Tk returned to ${order.userName}'s wallet.`);
     }
