@@ -1721,8 +1721,10 @@ export default function AdminPanel({
                     type="button"
                     onClick={async () => {
                       const targetOffers = offers.filter(o => {
+                        const isSpec = o.isSpecial === true || o.operator === 'Special' || o.category === 'Special Pack';
                         if (catalogOperatorFilter === 'All') return true;
-                        if (catalogOperatorFilter === 'Special') return o.operator === 'Special' || o.isSpecial === true;
+                        if (catalogOperatorFilter === 'Special') return isSpec;
+                        if (isSpec) return false;
                         return o.operator === catalogOperatorFilter;
                       });
 
@@ -1752,8 +1754,10 @@ export default function AdminPanel({
                     type="button"
                     onClick={async () => {
                       const targetOffers = offers.filter(o => {
+                        const isSpec = o.isSpecial === true || o.operator === 'Special' || o.category === 'Special Pack';
                         if (catalogOperatorFilter === 'All') return true;
-                        if (catalogOperatorFilter === 'Special') return o.operator === 'Special' || o.isSpecial === true;
+                        if (catalogOperatorFilter === 'Special') return isSpec;
+                        if (isSpec) return false;
                         return o.operator === catalogOperatorFilter;
                       });
 
@@ -1785,8 +1789,10 @@ export default function AdminPanel({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[550px] overflow-y-auto pr-1">
                 {offers
                   .filter(offer => {
+                    const isSpec = offer.isSpecial === true || offer.operator === 'Special' || offer.category === 'Special Pack';
                     if (catalogOperatorFilter === 'All') return true;
-                    if (catalogOperatorFilter === 'Special') return offer.operator === 'Special' || offer.isSpecial === true;
+                    if (catalogOperatorFilter === 'Special') return isSpec;
+                    if (isSpec) return false;
                     return offer.operator === catalogOperatorFilter;
                   })
                   .map(offer => (

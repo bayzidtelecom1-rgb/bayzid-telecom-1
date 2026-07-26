@@ -79,15 +79,17 @@ export async function fetchDriveOffers(): Promise<Offer[] | null> {
     const offers: Offer[] = [];
     querySnapshot.forEach((doc) => {
       const data = doc.data();
+      const isSpec = data.isSpecial === true || data.operator === 'Special' || data.category === 'Special Pack';
       offers.push({
         id: doc.id,
         operator: data.operator as OperatorName,
         title: data.title,
-        description: data.title,
+        description: data.description || data.title,
         validity: data.validity || '30 Days',
         originalPrice: Number(data.originalPrice) || 0,
         offerPrice: Number(data.offerPrice) || 0,
-        category: 'Drive Pack',
+        category: (data.category as any) || (isSpec ? 'Special Pack' : 'Drive Pack'),
+        isSpecial: isSpec,
         isActive: data.isActive !== false
       });
     });
