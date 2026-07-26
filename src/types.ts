@@ -25,7 +25,7 @@ export interface Offer {
   validity: string;
   originalPrice: number;
   offerPrice: number;
-  category: 'Drive Pack' | 'Regular Pack';
+  category: 'Drive Pack' | 'Regular Pack' | 'Special Pack';
   isSpecial?: boolean;
   isActive: boolean;
 }

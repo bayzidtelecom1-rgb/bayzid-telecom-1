@@ -436,16 +436,23 @@ export default function UserApp({
     if (offer.isActive === false) {
       return false;
     }
-    if (selectedOperator !== 'All') {
-      if (selectedOperator === 'Special') {
-        if (offer.operator !== 'Special' && !offer.isSpecial) return false;
-      } else if (offer.operator !== selectedOperator) {
+
+    const isSpecialOffer = offer.isSpecial === true || offer.operator === 'Special' || offer.category === 'Special Pack';
+
+    if (selectedOperator === 'Special') {
+      if (!isSpecialOffer) return false;
+    } else {
+      // Special offers must NOT show in standard Drive Pack or Regular Pack tabs
+      if (isSpecialOffer) return false;
+
+      if (selectedOperator !== 'All' && offer.operator !== selectedOperator) {
+        return false;
+      }
+      if (offer.category !== activeTab) {
         return false;
       }
     }
-    if (selectedOperator !== 'Special' && offer.category !== activeTab) {
-      return false;
-    }
+
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       return (
@@ -455,6 +462,7 @@ export default function UserApp({
         (offer.operator && offer.operator.toLowerCase().includes(q))
       );
     }
+
     return true;
   });
 

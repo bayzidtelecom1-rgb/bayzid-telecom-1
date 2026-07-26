@@ -168,7 +168,7 @@ export default function AdminPanel({
   const [offerValidity, setOfferValidity] = useState('30 Days');
   const [offerOriginalPrice, setOfferOriginalPrice] = useState('');
   const [offerOfferPrice, setOfferOfferPrice] = useState('');
-  const [offerCategory, setOfferCategory] = useState<'Drive Pack' | 'Regular Pack'>('Drive Pack');
+  const [offerCategory, setOfferCategory] = useState<'Drive Pack' | 'Regular Pack' | 'Special Pack'>('Drive Pack');
   const [offerIsSpecial, setOfferIsSpecial] = useState<boolean>(false);
 
   const handleStartEditOffer = (offer: Offer) => {
@@ -179,17 +179,20 @@ export default function AdminPanel({
     setOfferValidity(offer.validity || '30 Days');
     setOfferOriginalPrice(offer.originalPrice.toString());
     setOfferOfferPrice(offer.offerPrice.toString());
-    setOfferCategory(offer.category || 'Drive Pack');
-    setOfferIsSpecial(offer.isSpecial === true || offer.operator === 'Special');
+    const isSpec = offer.isSpecial === true || offer.operator === 'Special' || offer.category === 'Special Pack';
+    setOfferCategory(isSpec ? 'Special Pack' : (offer.category === 'Regular Pack' ? 'Regular Pack' : 'Drive Pack'));
+    setOfferIsSpecial(isSpec);
   };
 
   const handleCancelEditOffer = () => {
     setEditingOfferId(null);
+    setOfferOperator('GP');
     setOfferTitle('');
     setOfferDescription('');
     setOfferValidity('30 Days');
     setOfferOriginalPrice('');
     setOfferOfferPrice('');
+    setOfferCategory('Drive Pack');
     setOfferIsSpecial(false);
   };
 
@@ -362,6 +365,7 @@ export default function AdminPanel({
       alert('Please fill in all required fields');
       return;
     }
+    const isSpec = offerIsSpecial || offerOperator === 'Special' || offerCategory === 'Special Pack';
     const payload = {
       operator: offerOperator,
       title: offerTitle,
@@ -369,8 +373,8 @@ export default function AdminPanel({
       validity: offerValidity,
       originalPrice: Number(offerOriginalPrice),
       offerPrice: Number(offerOfferPrice),
-      category: offerCategory,
-      isSpecial: offerIsSpecial || offerOperator === 'Special'
+      category: isSpec ? 'Special Pack' : offerCategory,
+      isSpecial: isSpec
     };
 
     if (editingOfferId) {
@@ -387,11 +391,13 @@ export default function AdminPanel({
     }
 
     // Reset form
+    setOfferOperator('GP');
     setOfferTitle('');
     setOfferDescription('');
     setOfferValidity('30 Days');
     setOfferOriginalPrice('');
     setOfferOfferPrice('');
+    setOfferCategory('Drive Pack');
     setOfferIsSpecial(false);
   };
 
@@ -1538,7 +1544,10 @@ export default function AdminPanel({
                         type="button"
                         onClick={() => {
                           setOfferOperator(op);
-                          if (op === 'Special') setOfferIsSpecial(true);
+                          if (op === 'Special') {
+                            setOfferIsSpecial(true);
+                            setOfferCategory('Special Pack');
+                          }
                         }}
                         className={`py-2 px-1 flex flex-col items-center justify-center gap-1.5 text-xs font-bold rounded-lg cursor-pointer transition ${
                           offerOperator === op 
@@ -1591,11 +1600,11 @@ export default function AdminPanel({
                   <div>
                     <label className="block text-[11px] font-bold text-slate-300 uppercase mb-1">Pack Type (প্যাক টাইপ) *</label>
                     <select
-                      value={offerCategory === 'Regular Pack' ? 'Regular Pack' : offerIsSpecial ? 'Special Pack' : 'Drive Pack'}
+                      value={offerIsSpecial || offerCategory === 'Special Pack' ? 'Special Pack' : offerCategory === 'Regular Pack' ? 'Regular Pack' : 'Drive Pack'}
                       onChange={(e) => {
                         const val = e.target.value;
-                        if (val === 'Special Pack' || val === 'Drive / Special') {
-                          setOfferCategory('Drive Pack');
+                        if (val === 'Special Pack') {
+                          setOfferCategory('Special Pack');
                           setOfferIsSpecial(true);
                         } else if (val === 'Regular Pack') {
                           setOfferCategory('Regular Pack');
@@ -1609,7 +1618,6 @@ export default function AdminPanel({
                     >
                       <option value="Drive Pack">Drive Pack (ড্রাইভ প্যাক)</option>
                       <option value="Special Pack">Special Pack (স্পেশাল প্যাক)</option>
-                      <option value="Drive / Special">Drive & Special (ড্রাইভ ও স্পেশাল)</option>
                       <option value="Regular Pack">Regular Pack (রেগুলার প্যাক)</option>
                     </select>
                   </div>
