@@ -1122,7 +1122,10 @@ export default function UserApp({
                     <h3 className="text-xs font-black uppercase tracking-wider text-slate-400">Our Services / আমাদের সেবাসমূহ</h3>
                     <div className="grid grid-cols-2 gap-3">
                       <button
-                        onClick={() => setHomeSubMode('drive')}
+                        onClick={() => {
+                          setSelectedOperator('All');
+                          setHomeSubMode('drive');
+                        }}
                         className="p-4 bg-gradient-to-br from-amber-500 via-orange-500 to-rose-600 rounded-2xl text-left text-white shadow-lg hover:shadow-xl transition transform active:scale-95 flex flex-col justify-between h-32 cursor-pointer border border-amber-300/40"
                       >
                         <div className="w-10 h-10 rounded-full bg-white/25 flex items-center justify-center text-xl shadow-inner font-extrabold">
