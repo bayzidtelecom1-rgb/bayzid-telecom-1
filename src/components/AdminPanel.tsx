@@ -1724,7 +1724,6 @@ export default function AdminPanel({
                         const isSpec = o.isSpecial === true || o.operator === 'Special' || o.category === 'Special Pack';
                         if (catalogOperatorFilter === 'All') return true;
                         if (catalogOperatorFilter === 'Special') return isSpec;
-                        if (isSpec) return false;
                         return o.operator === catalogOperatorFilter;
                       });
 
@@ -1757,7 +1756,6 @@ export default function AdminPanel({
                         const isSpec = o.isSpecial === true || o.operator === 'Special' || o.category === 'Special Pack';
                         if (catalogOperatorFilter === 'All') return true;
                         if (catalogOperatorFilter === 'Special') return isSpec;
-                        if (isSpec) return false;
                         return o.operator === catalogOperatorFilter;
                       });
 
@@ -1792,7 +1790,6 @@ export default function AdminPanel({
                     const isSpec = offer.isSpecial === true || offer.operator === 'Special' || offer.category === 'Special Pack';
                     if (catalogOperatorFilter === 'All') return true;
                     if (catalogOperatorFilter === 'Special') return isSpec;
-                    if (isSpec) return false;
                     return offer.operator === catalogOperatorFilter;
                   })
                   .map(offer => (
