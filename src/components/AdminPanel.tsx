@@ -217,14 +217,26 @@ export default function AdminPanel({
 
   const handleSaveUserEdit = (userId: string) => {
     if (onUpdateUser) {
+      const targetUser = users.find(u => u.id === userId);
+      const newBal = Number(editBalance) || 0;
+      const oldBal = targetUser ? targetUser.balance : 0;
+      const diff = newBal - oldBal;
+
       onUpdateUser(userId, {
-        balance: Number(editBalance) || 0,
+        balance: newBal,
         level: editLevel,
         password: editPassword,
         pin: editPin
       });
       setEditingUserId(null);
-      alert('Reseller client account updated successfully!');
+
+      if (diff > 0) {
+        alert(`ইউজারের অ্যাকাউন্টে ${diff} ৳ যোগ করা হয়েছে এবং কাস্টমার হিস্ট্রিতে অটো সেভ করা হয়েছে!`);
+      } else if (diff < 0) {
+        alert(`ইউজারের অ্যাকাউন্ট থেকে ${Math.abs(diff)} ৳ কাটা হয়েছে এবং কাস্টমার হিস্ট্রিতে অটো সেভ করা হয়েছে!`);
+      } else {
+        alert('Reseller client account updated successfully!');
+      }
     }
   };
 

@@ -37,7 +37,7 @@ export interface BalanceRequest {
   amount: number;
   senderNumber: string;
   transactionId: string;
-  method: 'bKash' | 'Nagad' | 'Rocket';
+  method: 'bKash' | 'Nagad' | 'Rocket' | 'Admin' | string;
   status: 'Pending' | 'Approved' | 'Rejected';
   createdAt: string;
 }

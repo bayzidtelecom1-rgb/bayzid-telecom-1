@@ -461,10 +461,13 @@ export default function UserApp({
     alert('নম্বর কপি করা হয়েছে!');
   };
 
-  const getMethodColor = (method: 'bKash' | 'Nagad' | 'Rocket') => {
+  const getMethodColor = (method: string, senderNumber?: string) => {
+    if (senderNumber?.includes('Cut') || senderNumber?.includes('কর্তন') || method === 'Admin Cut') return 'bg-rose-600';
+    if (senderNumber?.includes('Add') || senderNumber?.includes('যোগ') || method === 'Admin Add') return 'bg-emerald-600';
     if (method === 'bKash') return 'bg-pink-600';
     if (method === 'Nagad') return 'bg-orange-500';
-    return 'bg-blue-600';
+    if (method === 'Rocket') return 'bg-blue-600';
+    return 'bg-purple-600';
   };
 
   // Handle balance reveal timer
@@ -1717,34 +1720,42 @@ export default function UserApp({
                   <p className="text-center text-slate-400 text-xs py-4 font-medium">কোনো ডিপোজিট অনুরোধ নেই।</p>
                 ) : (
                   <div className="space-y-3.5 max-h-[250px] overflow-y-auto pr-1">
-                    {userDeposits.map(req => (
-                      <div key={req.id} className="p-3 bg-slate-50 rounded-xl border border-slate-100 hover:bg-slate-100 transition space-y-1.5 animate-fade-in">
-                        <div className="flex justify-between items-center">
-                          <div className="flex items-center gap-1.5">
-                            <span className={`px-1.5 py-0.5 rounded text-[8px] font-black text-white ${getMethodColor(req.method)}`}>
-                              {req.method}
-                            </span>
-                            <span className="text-xs font-black text-slate-800">{req.amount} Tk</span>
-                          </div>
-                          
-                          <span className={`text-[10px] font-bold ${
-                            req.status === 'Approved' ? 'text-emerald-600' :
-                            req.status === 'Rejected' ? 'text-red-500' : 'text-amber-500'
-                          }`}>
-                            {req.status}
-                          </span>
-                        </div>
+                    {userDeposits.map(req => {
+                      const isCut = req.senderNumber?.includes('Cut') || req.senderNumber?.includes('কর্তন') || (req.method as string) === 'Admin Cut';
+                      const isAddAdjustment = req.senderNumber?.includes('Add') || req.senderNumber?.includes('যোগ') || (req.method as string) === 'Admin Add';
+                      const displayBadge = isCut ? 'Admin Cut' : isAddAdjustment ? 'Admin Add' : req.method;
 
-                        <div className="text-[10px] text-slate-400 flex justify-between items-center font-mono pt-1 border-t border-slate-100/50">
-                          <span>TxID: {req.transactionId}</span>
-                          <span>Sender: {req.senderNumber}</span>
+                      return (
+                        <div key={req.id} className="p-3 bg-slate-50 rounded-xl border border-slate-100 hover:bg-slate-100 transition space-y-1.5 animate-fade-in">
+                          <div className="flex justify-between items-center">
+                            <div className="flex items-center gap-1.5">
+                              <span className={`px-1.5 py-0.5 rounded text-[8px] font-black text-white ${getMethodColor(req.method, req.senderNumber)}`}>
+                                {displayBadge}
+                              </span>
+                              <span className={`text-xs font-black ${isCut ? 'text-rose-600' : 'text-emerald-600'}`}>
+                                {isCut ? `- ${req.amount} Tk` : `+ ${req.amount} Tk`}
+                              </span>
+                            </div>
+                            
+                            <span className={`text-[10px] font-bold ${
+                              req.status === 'Approved' ? 'text-emerald-600' :
+                              req.status === 'Rejected' ? 'text-red-500' : 'text-amber-500'
+                            }`}>
+                              {req.status}
+                            </span>
+                          </div>
+
+                          <div className="text-[10px] text-slate-400 flex justify-between items-center font-mono pt-1 border-t border-slate-100/50">
+                            <span>TxID: {req.transactionId}</span>
+                            <span>Sender: {req.senderNumber}</span>
+                          </div>
+                          <div className="text-[9px] text-slate-400 flex justify-between items-center font-medium pt-1">
+                            <span>Time: {new Date(req.createdAt).toLocaleString('en-US', { hour12: true })}</span>
+                            <span>#{req.id.slice(-6)}</span>
+                          </div>
                         </div>
-                        <div className="text-[9px] text-slate-400 flex justify-between items-center font-medium pt-1">
-                          <span>Time: {new Date(req.createdAt).toLocaleString('en-US', { hour12: true })}</span>
-                          <span>#{req.id.slice(-6)}</span>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>

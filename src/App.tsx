@@ -10,7 +10,7 @@ import { User, Offer, BalanceRequest, OfferOrder, AppConfig, OperatorName } from
 import UserApp from './components/UserApp';
 import AdminPanel from './components/AdminPanel';
 import { Shield, Sparkles, Smartphone, LogOut, CheckCircle, SmartphoneIcon, User as UserIcon, Settings, Plus, RotateCcw } from 'lucide-react';
-import { onSnapshot, collection } from 'firebase/firestore';
+import { onSnapshot, collection, addDoc } from 'firebase/firestore';
 import { db } from './lib/firebase';
 import {
   fetchAppSettings,
@@ -287,7 +287,49 @@ export default function App() {
   };
 
   const handleUpdateUser = async (userId: string, updatedFields: Partial<User>) => {
-    // Optimistic UI update
+    const targetUser = users.find(u => u.id === userId);
+
+    // Automatically generate transaction history record if Admin changes user balance
+    if (targetUser && updatedFields.balance !== undefined && updatedFields.balance !== targetUser.balance) {
+      const diff = updatedFields.balance - targetUser.balance;
+      const amount = Math.abs(diff);
+      const isAdd = diff > 0;
+
+      const newDepositRecord: BalanceRequest = {
+        id: `admin-adj-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        userId: targetUser.id,
+        userName: targetUser.name,
+        amount: amount,
+        senderNumber: isAdd ? 'Admin Balance Add (এডমিন ব্যালেন্স যোগ)' : 'Admin Balance Cut (এডমিন ব্যালেন্স কর্তন)',
+        transactionId: `ADM-${isAdd ? 'ADD' : 'CUT'}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`,
+        method: isAdd ? 'bKash' : 'Nagad',
+        status: 'Approved',
+        createdAt: new Date().toISOString()
+      };
+
+      // Optimistically record in local balanceRequests history
+      setBalanceRequests(prev => [newDepositRecord, ...prev]);
+
+      // Write to Firebase Firestore deposits collection if online
+      if (db) {
+        try {
+          await addDoc(collection(db, 'deposits'), {
+            userId: targetUser.id,
+            userName: targetUser.name,
+            method: isAdd ? 'bKash' : 'Nagad',
+            amount: amount,
+            senderNumber: newDepositRecord.senderNumber,
+            transactionId: newDepositRecord.transactionId,
+            status: 'Approved',
+            createdAt: new Date().toISOString()
+          });
+        } catch (err) {
+          console.warn('Could not record admin balance adjustment in Firebase:', err);
+        }
+      }
+    }
+
+    // Optimistic UI update for user profile
     setUsers(prev => prev.map(u => u.id === userId ? { ...u, ...updatedFields } : u));
     
     // Remote database write

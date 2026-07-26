@@ -348,7 +348,7 @@ export async function fetchDeposits(): Promise<BalanceRequest[] | null> {
 
 export async function createDepositRequest(
   userId: string,
-  method: 'bKash' | 'Nagad' | 'Rocket',
+  method: 'bKash' | 'Nagad' | 'Rocket' | string,
   amount: number,
   senderNumber: string,
   transactionId: string
