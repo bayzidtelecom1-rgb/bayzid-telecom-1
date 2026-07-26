@@ -156,10 +156,13 @@ export async function createDriveOffer(offer: Omit<Offer, 'id'>): Promise<Offer 
     const docRef = await addDoc(collection(db, 'offers'), {
       operator: offer.operator,
       title: offer.title,
+      description: offer.description || offer.title,
       offerPrice: offer.offerPrice,
       originalPrice: offer.originalPrice,
       validity: offer.validity,
-      isActive: offer.isActive,
+      category: offer.category || 'Drive Pack',
+      isSpecial: offer.isSpecial === true || offer.operator === 'Special',
+      isActive: offer.isActive !== false,
       createdAt: new Date().toISOString()
     });
     return {
@@ -179,6 +182,9 @@ export async function updateDriveOffer(id: string, fields: Partial<Offer>): Prom
     const cleanFields: any = {};
     if (fields.operator) cleanFields.operator = fields.operator;
     if (fields.title) cleanFields.title = fields.title;
+    if (fields.description !== undefined) cleanFields.description = fields.description;
+    if (fields.category) cleanFields.category = fields.category;
+    if (fields.isSpecial !== undefined) cleanFields.isSpecial = fields.isSpecial;
     if (fields.offerPrice !== undefined) cleanFields.offerPrice = fields.offerPrice;
     if (fields.originalPrice !== undefined) cleanFields.originalPrice = fields.originalPrice;
     if (fields.validity) cleanFields.validity = fields.validity;

@@ -1589,12 +1589,12 @@ export default function AdminPanel({
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-300 uppercase mb-1">Pack Type *</label>
+                    <label className="block text-[11px] font-bold text-slate-300 uppercase mb-1">Pack Type (প্যাক টাইপ) *</label>
                     <select
-                      value={offerIsSpecial ? 'Drive / Special' : offerCategory}
+                      value={offerCategory === 'Regular Pack' ? 'Regular Pack' : offerIsSpecial ? 'Special Pack' : 'Drive Pack'}
                       onChange={(e) => {
                         const val = e.target.value;
-                        if (val === 'Drive / Special') {
+                        if (val === 'Special Pack' || val === 'Drive / Special') {
                           setOfferCategory('Drive Pack');
                           setOfferIsSpecial(true);
                         } else if (val === 'Regular Pack') {
@@ -1605,11 +1605,12 @@ export default function AdminPanel({
                           setOfferIsSpecial(false);
                         }
                       }}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-blue-500"
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-blue-500 font-bold"
                     >
-                      <option value="Drive Pack">Drive Pack (ড্রাইভ)</option>
-                      <option value="Drive / Special">Drive / Special (ড্রাইভ ও স্পেশাল)</option>
-                      <option value="Regular Pack">Regular Pack (রেগুলার)</option>
+                      <option value="Drive Pack">Drive Pack (ড্রাইভ প্যাক)</option>
+                      <option value="Special Pack">Special Pack (স্পেশাল প্যাক)</option>
+                      <option value="Drive / Special">Drive & Special (ড্রাইভ ও স্পেশাল)</option>
+                      <option value="Regular Pack">Regular Pack (রেগুলার প্যাক)</option>
                     </select>
                   </div>
                 </div>

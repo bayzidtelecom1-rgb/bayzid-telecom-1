@@ -295,14 +295,20 @@ export default function App() {
       const amount = Math.abs(diff);
       const isAdd = diff > 0;
 
+      const methodVal = isAdd ? 'Admin Add' : 'Admin Cut';
+      const userPhoneStr = targetUser.phone ? targetUser.phone : '';
+      const senderVal = isAdd 
+        ? `Admin Add (${userPhoneStr || targetUser.name})` 
+        : `Admin Cut (${userPhoneStr || targetUser.name})`;
+
       const newDepositRecord: BalanceRequest = {
         id: `admin-adj-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
         userId: targetUser.id,
         userName: targetUser.name,
         amount: amount,
-        senderNumber: isAdd ? 'Admin Balance Add (এডমিন ব্যালেন্স যোগ)' : 'Admin Balance Cut (এডমিন ব্যালেন্স কর্তন)',
+        senderNumber: senderVal,
         transactionId: `ADM-${isAdd ? 'ADD' : 'CUT'}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`,
-        method: isAdd ? 'bKash' : 'Nagad',
+        method: methodVal,
         status: 'Approved',
         createdAt: new Date().toISOString()
       };
@@ -316,9 +322,9 @@ export default function App() {
           await addDoc(collection(db, 'deposits'), {
             userId: targetUser.id,
             userName: targetUser.name,
-            method: isAdd ? 'bKash' : 'Nagad',
+            method: methodVal,
             amount: amount,
-            senderNumber: newDepositRecord.senderNumber,
+            senderNumber: senderVal,
             transactionId: newDepositRecord.transactionId,
             status: 'Approved',
             createdAt: new Date().toISOString()

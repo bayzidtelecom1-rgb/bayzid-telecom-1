@@ -443,14 +443,16 @@ export default function UserApp({
         return false;
       }
     }
-    if (offer.category !== activeTab) {
+    if (selectedOperator !== 'Special' && offer.category !== activeTab) {
       return false;
     }
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       return (
         offer.title.toLowerCase().includes(q) ||
-        offer.description.toLowerCase().includes(q)
+        (offer.description && offer.description.toLowerCase().includes(q)) ||
+        (offer.validity && offer.validity.toLowerCase().includes(q)) ||
+        (offer.operator && offer.operator.toLowerCase().includes(q))
       );
     }
     return true;
@@ -752,15 +754,42 @@ export default function UserApp({
   const userDeposits = [...balanceRequests]
     .filter(d => {
       if (!user || !user.id) return false;
-      // If user is admin (owner) and viewing user-app, show admin's own deposits
+
+      // 1. Direct ID match
+      if (d.userId && d.userId === user.id) return true;
+
+      // 2. If user is admin (owner) and viewing user-app, show admin's own deposits
       if (user.role === 'admin') {
         return d.userId === user.id;
       }
-      const cleanDepositUserId = d.userId ? d.userId.replace('usr_', '') : '';
-      const cleanSender = d.senderNumber ? d.senderNumber.replace(/[^0-9]/g, '') : '';
-      return d.userId === user.id || 
-             (cleanUserPhone && cleanDepositUserId === cleanUserPhone) ||
-             (cleanUserPhone && cleanSender === cleanUserPhone);
+
+      // 3. Match using clean phone number comparisons
+      const cleanDepositUserId = d.userId ? d.userId.replace(/[^0-9]/g, '') : '';
+      if (cleanUserPhone && cleanDepositUserId) {
+        if (cleanDepositUserId === cleanUserPhone || cleanDepositUserId.includes(cleanUserPhone) || cleanUserPhone.includes(cleanDepositUserId)) {
+          return true;
+        }
+      }
+
+      // 4. Match if senderNumber contains user's clean phone number
+      if (cleanUserPhone && d.senderNumber) {
+        const cleanSender = d.senderNumber.replace(/[^0-9]/g, '');
+        if (cleanSender && (cleanSender === cleanUserPhone || cleanSender.includes(cleanUserPhone) || cleanUserPhone.includes(cleanSender))) {
+          return true;
+        }
+      }
+
+      // 5. Direct string search of user phone in senderNumber or userId
+      if (user.phone && ((d.senderNumber && d.senderNumber.includes(user.phone)) || (d.userId && d.userId.includes(user.phone)))) {
+        return true;
+      }
+
+      // 6. Match exact user name if available
+      if (d.userName && user.name && d.userName.trim().toLowerCase() === user.name.trim().toLowerCase()) {
+        return true;
+      }
+
+      return false;
     })
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
