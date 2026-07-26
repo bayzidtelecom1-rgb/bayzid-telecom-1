@@ -37,8 +37,8 @@ import {
   bulkUpdateDriveOffersStatus
 } from './lib/firebaseService';
 
-const isSupabaseConfigured = () => true;
-const checkSupabaseConnection = async () => ({ success: true, message: 'Connected to Firebase' });
+const isSupabaseConfigured = () => Boolean(db);
+const checkSupabaseConnection = async () => ({ success: Boolean(db), message: db ? 'Connected to Firebase' : 'Firebase not connected' });
 
 
 export default function App() {
@@ -151,6 +151,10 @@ export default function App() {
     }
 
     loadAllData();
+
+    if (!db) {
+      return;
+    }
 
     // Subscribe to real-time events on Firebase Firestore directly for immediate updates
     const unsubSettings = onSnapshot(collection(db, 'settings'), (snapshot) => {

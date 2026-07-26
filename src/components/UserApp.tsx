@@ -32,7 +32,8 @@ import {
   ShieldAlert,
   ArrowLeft,
   PlusCircle,
-  MoreVertical
+  MoreVertical,
+  X
 } from 'lucide-react';
 import { User, Offer, BalanceRequest, OfferOrder, AppConfig, OperatorName } from '../types';
 
@@ -323,6 +324,27 @@ export default function UserApp({
       }, '');
     }
   }, [activeScreen, homeSubMode, currentModal, isSidebarOpen, isLoggedIn]);
+
+  // Reset/Clear all input text fields when switching views or navigating back
+  useEffect(() => {
+    setSearchQuery('');
+    setRechargePhone('');
+    setRechargeAmount('');
+    setRechargePin('');
+    setRechargeError('');
+    setRechargeSuccess(false);
+    setAddAmount('');
+    setAddTxId('');
+    setAddSuccessMsg(false);
+    setTargetNumber('');
+    setBuyPin('');
+    setBuyError('');
+    setComplainText('');
+    setNewPin('');
+    setNewPinConfirm('');
+    setNewPassword('');
+    setNewPasswordConfirm('');
+  }, [homeSubMode, activeScreen, currentModal]);
 
   const handleStartBuyOffer = (offer: Offer) => {
     setSelectedOfferForBuy(offer);
@@ -635,13 +657,13 @@ export default function UserApp({
 
   const handleBalanceRequestSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!addAmount || !addSender || !addTxId) {
+    if (!addAmount || !addTxId) {
       alert('সবগুলো ঘর পূরণ করুন!');
       return;
     }
     onSubmitBalanceRequest({
       amount: Number(addAmount),
-      senderNumber: addSender,
+      senderNumber: user.phone || 'N/A',
       transactionId: addTxId.trim().toUpperCase(),
       method: addMethod
     });
@@ -650,7 +672,7 @@ export default function UserApp({
     // Generate WhatsApp Redirect
     generateWhatsappRedirect('deposit', {
       amount: addAmount,
-      senderNumber: addSender,
+      senderNumber: user.phone || 'N/A',
       transactionId: addTxId.trim().toUpperCase(),
       method: addMethod
     });
@@ -864,19 +886,6 @@ export default function UserApp({
                         className="w-full bg-slate-950/80 border border-slate-700/80 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-green-500 transition font-mono"
                       />
                     </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="block text-[10px] font-black uppercase text-slate-400 tracking-wider">Account Level *</label>
-                    <select
-                      value={regLevel}
-                      onChange={(e) => setRegLevel(e.target.value as any)}
-                      className="w-full bg-slate-950 border border-slate-700/80 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-green-500 transition"
-                    >
-                      <option value="Distributor">Distributor</option>
-                      <option value="Dealer">Dealer</option>
-                      <option value="Retailer">Retailer</option>
-                    </select>
                   </div>
 
                   <button
@@ -1219,9 +1228,19 @@ export default function UserApp({
                         placeholder="খুঁজুন (যেমন: 10GB, 30 Day...)"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-4 py-2 text-xs focus:outline-none focus:border-blue-500 text-slate-800"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-9 py-2 text-xs focus:outline-none focus:border-blue-500 text-slate-800"
                       />
                       <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                      {searchQuery && (
+                        <button
+                          type="button"
+                          onClick={() => setSearchQuery('')}
+                          className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 p-0.5 rounded-full hover:bg-slate-200 cursor-pointer transition"
+                          title="Clear search"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
                   </div>
 
@@ -1517,45 +1536,45 @@ export default function UserApp({
           {activeScreen === 'recharge' && (
             <div className="p-4 space-y-4 touch-pan-y overscroll-contain">
               <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 text-center">
-                <h2 className="text-sm font-black text-slate-800">Add Balance (bKash/Nagad/Rocket)</h2>
-                <p className="text-[11px] text-slate-400 mt-1">নিচের এডমিন একাউন্টে টাকা পাঠিয়ে ফরমটি পূরণ করুন।</p>
+                <h2 className="text-base sm:text-lg font-black text-slate-800">Add Balance (bKash/Nagad/Rocket)</h2>
+                <p className="text-xs font-semibold text-slate-500 mt-1">নিচের এডমিন একাউন্টে টাকা পাঠিয়ে ফরমটি পূরণ করুন।</p>
                 
                 {/* Billing lines */}
                 <div className="grid grid-cols-1 gap-2.5 mt-4 text-left">
-                  <div className="p-2.5 bg-pink-50 rounded-xl border border-pink-100 flex justify-between items-center">
+                  <div className="p-3 bg-pink-50 rounded-xl border border-pink-100 flex justify-between items-center">
                     <div>
-                      <p className="text-[10px] font-bold text-pink-700">bKash Personal Number</p>
-                      <p className="text-xs font-mono font-black text-slate-800 mt-0.5">{config.bkashNumber}</p>
+                      <p className="text-xs font-extrabold text-pink-700">bKash Personal Number</p>
+                      <p className="text-sm sm:text-base font-mono font-black text-slate-800 mt-0.5">{config.bkashNumber}</p>
                     </div>
                     <button 
                       onClick={() => copyToClipboard(config.bkashNumber)}
-                      className="px-2 py-1 bg-pink-600 hover:bg-pink-700 text-white text-[9px] font-bold rounded-lg cursor-pointer"
+                      className="px-3 py-1.5 bg-pink-600 hover:bg-pink-700 text-white text-xs font-bold rounded-lg cursor-pointer transition shadow-sm"
                     >
                       Copy No
                     </button>
                   </div>
 
-                  <div className="p-2.5 bg-orange-50 rounded-xl border border-orange-100 flex justify-between items-center">
+                  <div className="p-3 bg-orange-50 rounded-xl border border-orange-100 flex justify-between items-center">
                     <div>
-                      <p className="text-[10px] font-bold text-orange-700">Nagad Personal Number</p>
-                      <p className="text-xs font-mono font-black text-slate-800 mt-0.5">{config.nagadNumber}</p>
+                      <p className="text-xs font-extrabold text-orange-700">Nagad Personal Number</p>
+                      <p className="text-sm sm:text-base font-mono font-black text-slate-800 mt-0.5">{config.nagadNumber}</p>
                     </div>
                     <button 
                       onClick={() => copyToClipboard(config.nagadNumber)}
-                      className="px-2 py-1 bg-orange-600 hover:bg-orange-700 text-white text-[9px] font-bold rounded-lg cursor-pointer"
+                      className="px-3 py-1.5 bg-orange-600 hover:bg-orange-700 text-white text-xs font-bold rounded-lg cursor-pointer transition shadow-sm"
                     >
                       Copy No
                     </button>
                   </div>
 
-                  <div className="p-2.5 bg-blue-50 rounded-xl border border-blue-100 flex justify-between items-center">
+                  <div className="p-3 bg-blue-50 rounded-xl border border-blue-100 flex justify-between items-center">
                     <div>
-                      <p className="text-[10px] font-bold text-blue-700">Rocket Personal Number</p>
-                      <p className="text-xs font-mono font-black text-slate-800 mt-0.5">{config.rocketNumber}</p>
+                      <p className="text-xs font-extrabold text-blue-700">Rocket Personal Number</p>
+                      <p className="text-sm sm:text-base font-mono font-black text-slate-800 mt-0.5">{config.rocketNumber}</p>
                     </div>
                     <button 
                       onClick={() => copyToClipboard(config.rocketNumber)}
-                      className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white text-[9px] font-bold rounded-lg cursor-pointer"
+                      className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg cursor-pointer transition shadow-sm"
                     >
                       Copy No
                     </button>
@@ -1564,30 +1583,30 @@ export default function UserApp({
               </div>
 
               {/* Form submit */}
-              <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100">
-                <h3 className="text-xs font-black uppercase tracking-wider text-slate-400 mb-3">Submit Transaction ID</h3>
+              <div className="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-slate-100">
+                <h3 className="text-sm font-black uppercase tracking-wider text-slate-600 mb-3.5">Submit Transaction Details</h3>
                 
                 {addSuccessMsg && (
-                  <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-center flex flex-col items-center gap-1 animate-fade-in">
-                    <CheckCircle className="w-5 h-5 text-emerald-600" />
-                    <p className="text-xs font-bold">টাকা যোগের অনুরোধ পাঠানো হয়েছে!</p>
-                    <p className="text-[10px] text-slate-500">এডমিন চেক করে আপনার ব্যালেন্স যুক্ত করে দেবে।</p>
+                  <div className="mb-4 p-3.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-center flex flex-col items-center gap-1 animate-fade-in">
+                    <CheckCircle className="w-6 h-6 text-emerald-600" />
+                    <p className="text-sm font-bold">টাকা যোগের অনুরোধ পাঠানো হয়েছে!</p>
+                    <p className="text-xs text-slate-500 font-medium">এডমিন চেক করে আপনার ব্যালেন্স যুক্ত করে দেবে।</p>
                   </div>
                 )}
 
-                <form onSubmit={handleBalanceRequestSubmit} className="space-y-3.5">
+                <form onSubmit={handleBalanceRequestSubmit} className="space-y-4">
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Select Money Agent</label>
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1.5">Select Money Agent</label>
                     <div className="grid grid-cols-3 gap-2">
                       {(['bKash', 'Nagad', 'Rocket'] as const).map(m => (
                         <button
                           key={m}
                           type="button"
                           onClick={() => setAddMethod(m)}
-                          className={`py-2 text-xs font-bold rounded-xl transition cursor-pointer border ${
+                          className={`py-2.5 text-sm font-bold rounded-xl transition cursor-pointer border ${
                             addMethod === m 
-                              ? 'bg-blue-600 border-blue-500 text-white shadow-sm' 
-                              : 'bg-slate-50 border-slate-200 text-slate-700'
+                              ? 'bg-blue-600 border-blue-500 text-white shadow-sm font-extrabold' 
+                              : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
                           }`}
                         >
                           {m}
@@ -1597,44 +1616,32 @@ export default function UserApp({
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Amount (Tk) *</label>
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1.5">Amount (Tk) *</label>
                     <input
                       type="number"
                       required
                       placeholder="e.g. 1000"
                       value={addAmount}
                       onChange={(e) => setAddAmount(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 focus:outline-none focus:border-blue-500"
+                      className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-sm font-semibold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-blue-500 focus:bg-white transition"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Sender Mobile Number *</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. 017xxxxxxxx"
-                      value={addSender}
-                      onChange={(e) => setAddSender(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 font-mono focus:outline-none focus:border-blue-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Transaction ID (TxID) *</label>
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1.5">Transaction ID (TxID) *</label>
                     <input
                       type="text"
                       required
                       placeholder="e.g. BKX5S389W"
                       value={addTxId}
                       onChange={(e) => setAddTxId(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 font-mono focus:outline-none focus:border-blue-500 uppercase"
+                      className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-sm font-mono font-bold text-slate-800 uppercase tracking-wide placeholder:text-slate-400 focus:outline-none focus:border-blue-500 focus:bg-white transition"
                     />
                   </div>
 
                   <button
                     type="submit"
-                    className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-blue-200 cursor-pointer"
+                    className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white text-sm sm:text-base font-black rounded-xl transition-all shadow-md shadow-blue-200 active:scale-[0.98] cursor-pointer mt-2"
                   >
                     Confirm Deposit Request
                   </button>

@@ -42,6 +42,7 @@ function mapAppSettings(data: any): AppConfig {
 
 // 1. App Settings
 export async function fetchAppSettings(): Promise<AppConfig | null> {
+  if (!db) return mapAppSettings(null);
   try {
     const docRef = doc(db, 'settings', 'app_config');
     const docSnap = await getDoc(docRef);
@@ -58,6 +59,7 @@ export async function fetchAppSettings(): Promise<AppConfig | null> {
 }
 
 export async function updateAppSettings(settings: AppConfig): Promise<boolean> {
+  if (!db) return false;
   try {
     const docRef = doc(db, 'settings', 'app_config');
     await setDoc(docRef, settings, { merge: true });
@@ -70,6 +72,7 @@ export async function updateAppSettings(settings: AppConfig): Promise<boolean> {
 
 // 2. Drive Offers
 export async function fetchDriveOffers(): Promise<Offer[] | null> {
+  if (!db) return [];
   try {
     const q = query(collection(db, 'offers'), orderBy('operator', 'asc'));
     const querySnapshot = await getDocs(q);
@@ -148,6 +151,7 @@ export async function fetchDriveOffers(): Promise<Offer[] | null> {
 }
 
 export async function createDriveOffer(offer: Omit<Offer, 'id'>): Promise<Offer | null> {
+  if (!db) return null;
   try {
     const docRef = await addDoc(collection(db, 'offers'), {
       operator: offer.operator,
@@ -169,6 +173,7 @@ export async function createDriveOffer(offer: Omit<Offer, 'id'>): Promise<Offer 
 }
 
 export async function updateDriveOffer(id: string, fields: Partial<Offer>): Promise<boolean> {
+  if (!db) return false;
   try {
     const docRef = doc(db, 'offers', id);
     const cleanFields: any = {};
@@ -188,6 +193,7 @@ export async function updateDriveOffer(id: string, fields: Partial<Offer>): Prom
 }
 
 export async function deleteDriveOffer(id: string): Promise<boolean> {
+  if (!db) return false;
   try {
     await deleteDoc(doc(db, 'offers', id));
     return true;
@@ -198,6 +204,7 @@ export async function deleteDriveOffer(id: string): Promise<boolean> {
 }
 
 export async function bulkUpdateDriveOffersStatus(isActive: boolean): Promise<boolean> {
+  if (!db) return false;
   try {
     const q = query(collection(db, 'offers'));
     const querySnapshot = await getDocs(q);
@@ -216,6 +223,7 @@ export async function bulkUpdateDriveOffersStatus(isActive: boolean): Promise<bo
 
 // 3. Resellers Profiles (Users)
 export async function fetchUsersProfiles(): Promise<User[] | null> {
+  if (!db) return [];
   try {
     const querySnapshot = await getDocs(collection(db, 'users'));
     const users: User[] = [];
@@ -265,6 +273,7 @@ export async function fetchUsersProfiles(): Promise<User[] | null> {
 }
 
 export async function updateUserProfile(userId: string, fields: Partial<User>): Promise<boolean> {
+  if (!db) return false;
   try {
     const docRef = doc(db, 'users', userId);
     const payload: any = {};
@@ -285,6 +294,7 @@ export async function updateUserProfile(userId: string, fields: Partial<User>): 
 }
 
 export async function createUserProfile(user: User): Promise<boolean> {
+  if (!db) return false;
   try {
     const docRef = doc(db, 'users', user.id);
     await setDoc(docRef, {
@@ -310,6 +320,7 @@ export async function createUserProfile(user: User): Promise<boolean> {
 
 // 4. Deposits
 export async function fetchDeposits(): Promise<BalanceRequest[] | null> {
+  if (!db) return [];
   try {
     const q = query(collection(db, 'deposits'), orderBy('createdAt', 'desc'));
     const querySnapshot = await getDocs(q);
@@ -342,6 +353,7 @@ export async function createDepositRequest(
   senderNumber: string,
   transactionId: string
 ): Promise<boolean> {
+  if (!db) return false;
   try {
     const userSnap = await getDoc(doc(db, 'users', userId));
     const userName = userSnap.exists() ? (userSnap.data()?.name || 'Reseller') : 'Reseller';
@@ -364,6 +376,7 @@ export async function createDepositRequest(
 }
 
 export async function approveDepositRequest(depositId: string, amount: number): Promise<boolean> {
+  if (!db) return false;
   try {
     await runTransaction(db, async (transaction) => {
       const depositRef = doc(db, 'deposits', depositId);
@@ -401,6 +414,7 @@ export async function approveDepositRequest(depositId: string, amount: number): 
 }
 
 export async function rejectDepositRequest(depositId: string): Promise<boolean> {
+  if (!db) return false;
   try {
     const docRef = doc(db, 'deposits', depositId);
     await updateDoc(docRef, { status: 'Rejected' });
@@ -413,6 +427,7 @@ export async function rejectDepositRequest(depositId: string): Promise<boolean> 
 
 // 5. Orders
 export async function fetchOrders(): Promise<OfferOrder[] | null> {
+  if (!db) return [];
   try {
     const q = query(collection(db, 'orders'), orderBy('createdAt', 'desc'));
     const querySnapshot = await getDocs(q);
@@ -445,6 +460,7 @@ export async function purchaseOfferRPC(
   targetNumber: string,
   price: number
 ): Promise<{ success: boolean; orderId?: string; error?: string }> {
+  if (!db) return { success: false, error: 'Database not initialized' };
   try {
     let finalOrderId: string | undefined;
 
@@ -507,6 +523,7 @@ export async function purchaseOfferRPC(
 }
 
 export async function completeOrder(orderId: string): Promise<boolean> {
+  if (!db) return false;
   try {
     const docRef = doc(db, 'orders', orderId);
     await updateDoc(docRef, { status: 'Successful' });
@@ -518,6 +535,7 @@ export async function completeOrder(orderId: string): Promise<boolean> {
 }
 
 export async function cancelAndRefundOrderRPC(orderId: string, refundAmount: number): Promise<boolean> {
+  if (!db) return false;
   try {
     await runTransaction(db, async (transaction) => {
       const orderRef = doc(db, 'orders', orderId);
@@ -555,6 +573,7 @@ export async function cancelAndRefundOrderRPC(orderId: string, refundAmount: num
 
 // 6. Danger Zone Operations
 export async function deleteAllOrders(): Promise<boolean> {
+  if (!db) return false;
   try {
     const querySnapshot = await getDocs(collection(db, 'orders'));
     for (const doc of querySnapshot.docs) {
@@ -568,6 +587,7 @@ export async function deleteAllOrders(): Promise<boolean> {
 }
 
 export async function deleteAllDeposits(): Promise<boolean> {
+  if (!db) return false;
   try {
     const querySnapshot = await getDocs(collection(db, 'deposits'));
     for (const doc of querySnapshot.docs) {
@@ -581,6 +601,7 @@ export async function deleteAllDeposits(): Promise<boolean> {
 }
 
 export async function deleteAllUsersExceptAdmin(): Promise<boolean> {
+  if (!db) return false;
   try {
     const querySnapshot = await getDocs(collection(db, 'users'));
     for (const doc of querySnapshot.docs) {

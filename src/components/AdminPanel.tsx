@@ -1273,7 +1273,7 @@ export default function AdminPanel({
                       const q = searchQuery.toLowerCase();
                       return r.userName.toLowerCase().includes(q) || 
                              r.transactionId.toLowerCase().includes(q) || 
-                             r.senderNumber.includes(q) ||
+                             (r.senderNumber || '').includes(q) ||
                              r.method.toLowerCase().includes(q);
                     })
                     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
