@@ -6,7 +6,7 @@ import {
   INITIAL_BALANCE_REQUESTS, 
   INITIAL_ORDERS 
 } from './data';
-import { User, Offer, BalanceRequest, OfferOrder, AppConfig, OperatorName, LoanRecord } from './types';
+import { User, Offer, BalanceRequest, OfferOrder, AppConfig, OperatorName, LoanRecord, parseDateToMs } from './types';
 import UserApp from './components/UserApp';
 import AdminPanel from './components/AdminPanel';
 import { Shield, Sparkles, Smartphone, LogOut, CheckCircle, SmartphoneIcon, User as UserIcon, Settings, Plus, RotateCcw } from 'lucide-react';
@@ -250,7 +250,7 @@ export default function App() {
           createdAt: data.createdAt
         });
       });
-      setBalanceRequests(dbDeposits);
+      setBalanceRequests(dbDeposits.sort((a,b) => parseDateToMs(b.createdAt) - parseDateToMs(a.createdAt)));
     });
 
     const unsubOrders = onSnapshot(collection(db, 'orders'), (snapshot) => {
@@ -270,7 +270,7 @@ export default function App() {
           createdAt: data.createdAt
         });
       });
-      setOrders(dbOrders);
+      setOrders(dbOrders.sort((a,b) => parseDateToMs(b.createdAt) - parseDateToMs(a.createdAt)));
     });
 
     const unsubLoans = onSnapshot(collection(db, 'loan_records'), (snapshot) => {
@@ -289,7 +289,7 @@ export default function App() {
           remainingDue: Number(data.remainingDue) || 0
         });
       });
-      setLoanRecords(dbLoans.sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+      setLoanRecords(dbLoans.sort((a,b) => parseDateToMs(b.createdAt) - parseDateToMs(a.createdAt)));
     });
 
     return () => {

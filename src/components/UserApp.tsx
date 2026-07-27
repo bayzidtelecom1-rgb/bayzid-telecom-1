@@ -35,7 +35,7 @@ import {
   MoreVertical,
   X
 } from 'lucide-react';
-import { User, Offer, BalanceRequest, OfferOrder, AppConfig, OperatorName, LoanRecord } from '../types';
+import { User, Offer, BalanceRequest, OfferOrder, AppConfig, OperatorName, LoanRecord, parseDateToMs } from '../types';
 
 interface UserAppProps {
   user: User;
@@ -139,6 +139,7 @@ export default function UserApp({
   setCurrentView,
 }: UserAppProps) {
   const [activeScreen, setActiveScreen] = useState<'home' | 'recharge' | 'history' | 'profile'>('home');
+  const [historySubTab, setHistorySubTab] = useState<'all' | 'orders' | 'deposits' | 'loans'>('all');
   const [selectedOperator, setSelectedOperator] = useState<OperatorName | 'All'>('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'Drive Pack' | 'Regular Pack'>('Drive Pack');
@@ -759,7 +760,7 @@ export default function UserApp({
       const cleanOrderUserId = o.userId ? o.userId.replace('usr_', '') : '';
       return o.userId === user.id || (cleanUserPhone && cleanOrderUserId === cleanUserPhone);
     })
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    .sort((a, b) => parseDateToMs(b.createdAt) - parseDateToMs(a.createdAt));
 
   const userDeposits = [...balanceRequests]
     .filter(d => {
@@ -801,7 +802,7 @@ export default function UserApp({
 
       return false;
     })
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    .sort((a, b) => parseDateToMs(b.createdAt) - parseDateToMs(a.createdAt));
 
   const userLoans = [...loanRecords]
     .filter(l => {
@@ -810,7 +811,47 @@ export default function UserApp({
       if (cleanUserPhone && l.userPhone && l.userPhone.replace(/[^0-9]/g, '') === cleanUserPhone) return true;
       return false;
     })
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    .sort((a, b) => parseDateToMs(b.createdAt) - parseDateToMs(a.createdAt));
+
+  // Unified history log across ALL types sorted strictly by newest date first
+  const combinedHistory = [
+    ...userOrders.map(o => ({
+      id: `order_${o.id}`,
+      type: 'ORDER' as const,
+      title: o.offerTitle,
+      subtitle: `Target: ${o.targetPhone}`,
+      amount: `${o.offerPrice} Tk`,
+      status: o.status,
+      createdAt: o.createdAt,
+      operator: o.operator,
+      rawOrder: o
+    })),
+    ...userDeposits.map(d => {
+      const isCut = d.senderNumber?.includes('Cut') || d.senderNumber?.includes('কর্তন') || (d.method as string) === 'Admin Cut';
+      const isAddAdjustment = d.senderNumber?.includes('Add') || d.senderNumber?.includes('যোগ') || (d.method as string) === 'Admin Add';
+      const displayBadge = isCut ? 'Admin Cut' : isAddAdjustment ? 'Admin Add' : d.method;
+      return {
+        id: `deposit_${d.id}`,
+        type: 'DEPOSIT' as const,
+        title: `${displayBadge} Deposit`,
+        subtitle: `TxID: ${d.transactionId || 'N/A'} | Sender: ${d.senderNumber || 'N/A'}`,
+        amount: `${isCut ? '-' : '+'}${d.amount} Tk`,
+        status: d.status,
+        createdAt: d.createdAt,
+        rawDeposit: d
+      };
+    }),
+    ...userLoans.map(l => ({
+      id: `loan_${l.id}`,
+      type: 'LOAN' as const,
+      title: l.type === 'GIVEN' ? 'লোন গ্রহণ (Loan Given)' : 'স্বয়ংক্রিয় লোন পরিশোধ (Loan Repaid)',
+      subtitle: `${l.note || 'লোন ট্রানজাকশন'} | বকেয়া: ৳${l.remainingDue}`,
+      amount: l.type === 'GIVEN' ? `+ ${l.amount} Tk` : `- ${l.amount} Tk`,
+      status: l.type === 'GIVEN' ? 'Given' : 'Repaid',
+      createdAt: l.createdAt,
+      rawLoan: l
+    }))
+  ].sort((a, b) => parseDateToMs(b.createdAt) - parseDateToMs(a.createdAt));
 
   return (
     <div className="bg-slate-950 h-[100dvh] max-h-[100dvh] overflow-hidden flex flex-col items-center justify-center select-none w-full md:p-6">
@@ -1716,148 +1757,272 @@ export default function UserApp({
           {/* SCREEN 3: PURCHASE AND BALANCE HISTORY */}
           {activeScreen === 'history' && (
             <div className="p-4 space-y-4">
-              {/* Offer Purchase list */}
-              <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100">
-                <h3 className="text-xs font-black uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-1">
-                  <Smartphone className="w-4 h-4 text-sky-500" />
-                  My Offer Purchase Orders
-                </h3>
-
-                {userOrders.length === 0 ? (
-                  <p className="text-center text-slate-400 text-xs py-4 font-medium">কোন অফার অর্ডার করেননি এখনও।</p>
-                ) : (
-                  <div className="space-y-3.5 max-h-[250px] overflow-y-auto pr-1">
-                    {userOrders.map(order => (
-                      <div key={order.id} className="p-3 bg-slate-50 rounded-xl border border-slate-100 hover:bg-slate-100 transition space-y-2 animate-fade-in">
-                        <div className="flex justify-between items-start gap-2">
-                          <div>
-                            <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[8px] font-black uppercase ${
-                              order.operator === 'GP' ? 'bg-blue-600 text-white' :
-                              order.operator === 'Robi' ? 'bg-red-600 text-white' :
-                              order.operator === 'Airtel' ? 'bg-rose-600 text-white' :
-                              order.operator === 'Banglalink' ? 'bg-orange-600 text-white' : 'bg-emerald-600 text-white'
-                            }`}>
-                              <OperatorLogo operator={order.operator} className="w-3 h-3" />
-                              <span>{order.operator}</span>
-                            </span>
-                            <h4 className="text-xs font-extrabold text-slate-800 mt-1">{order.offerTitle}</h4>
-                          </div>
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black shrink-0 ${
-                            order.status === 'Successful' ? 'bg-emerald-500/10 text-emerald-600' :
-                            order.status === 'Canceled' ? 'bg-red-500/10 text-red-600' : 'bg-amber-500/10 text-amber-600 animate-pulse'
-                          }`}>
-                            {order.status === 'Successful' && 'Successful'}
-                            {order.status === 'Canceled' && 'Refunded'}
-                            {order.status === 'Pending' && 'Pending'}
-                          </span>
-                        </div>
-
-                        <div className="flex justify-between items-center text-[10px] text-slate-500 border-t border-slate-200/50 pt-2">
-                          <span>Target: <strong className="font-mono text-slate-800">{order.targetPhone}</strong></span>
-                          <span className="font-bold text-slate-800">{order.offerPrice} Tk</span>
-                        </div>
-                        <div className="flex justify-between items-center text-[9px] text-slate-400 font-medium pt-1">
-                          <span>Time: {new Date(order.createdAt).toLocaleString('en-US', { hour12: true })}</span>
-                          <span>#{order.id.slice(-6)}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+              
+              {/* History Sub-Tabs */}
+              <div className="grid grid-cols-4 gap-1 p-1 bg-slate-100 rounded-xl text-[10px] font-bold">
+                <button
+                  onClick={() => setHistorySubTab('all')}
+                  className={`py-2 px-1 rounded-lg text-center transition cursor-pointer ${
+                    historySubTab === 'all'
+                      ? 'bg-blue-600 text-white font-extrabold shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  সকল হিস্টোরি
+                </button>
+                <button
+                  onClick={() => setHistorySubTab('orders')}
+                  className={`py-2 px-1 rounded-lg text-center transition cursor-pointer ${
+                    historySubTab === 'orders'
+                      ? 'bg-blue-600 text-white font-extrabold shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  অর্ডারসমূহ ({userOrders.length})
+                </button>
+                <button
+                  onClick={() => setHistorySubTab('deposits')}
+                  className={`py-2 px-1 rounded-lg text-center transition cursor-pointer ${
+                    historySubTab === 'deposits'
+                      ? 'bg-blue-600 text-white font-extrabold shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  ডিপোজিট ({userDeposits.length})
+                </button>
+                <button
+                  onClick={() => setHistorySubTab('loans')}
+                  className={`py-2 px-1 rounded-lg text-center transition cursor-pointer ${
+                    historySubTab === 'loans'
+                      ? 'bg-blue-600 text-white font-extrabold shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  লোন হিস্টোরি ({userLoans.length})
+                </button>
               </div>
 
-              {/* Deposit History list */}
-              <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100">
-                <h3 className="text-xs font-black uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-1">
-                  <History className="w-4 h-4 text-blue-500" />
-                  Deposit Requests Log
-                </h3>
+              {/* VIEW 1: COMBINED ALL HISTORY (NEWEST FIRST AT TOP) */}
+              {historySubTab === 'all' && (
+                <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 space-y-3">
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-xs font-black uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                      <Clock className="w-4 h-4 text-blue-600" />
+                      সকল হিস্টোরি (সর্বশেষ তারিখ প্রথমে)
+                    </h3>
+                    <span className="text-[10px] text-slate-400 font-bold">মোট: {combinedHistory.length}</span>
+                  </div>
 
-                {userDeposits.length === 0 ? (
-                  <p className="text-center text-slate-400 text-xs py-4 font-medium">কোনো ডিপোজিট অনুরোধ নেই।</p>
-                ) : (
-                  <div className="space-y-3.5 max-h-[250px] overflow-y-auto pr-1">
-                    {userDeposits.map(req => {
-                      const isCut = req.senderNumber?.includes('Cut') || req.senderNumber?.includes('কর্তন') || (req.method as string) === 'Admin Cut';
-                      const isAddAdjustment = req.senderNumber?.includes('Add') || req.senderNumber?.includes('যোগ') || (req.method as string) === 'Admin Add';
-                      const displayBadge = isCut ? 'Admin Cut' : isAddAdjustment ? 'Admin Add' : req.method;
+                  {combinedHistory.length === 0 ? (
+                    <p className="text-center text-slate-400 text-xs py-8 font-medium">কোনো লেনদেন বা হিস্টোরির রেকর্ড নেই।</p>
+                  ) : (
+                    <div className="space-y-3 max-h-[520px] overflow-y-auto pr-1">
+                      {combinedHistory.map(item => {
+                        return (
+                          <div key={item.id} className="p-3 bg-slate-50 rounded-xl border border-slate-100 hover:bg-slate-100/80 transition space-y-2 animate-fade-in shadow-2xs">
+                            <div className="flex justify-between items-start gap-2">
+                              <div className="space-y-0.5">
+                                <div className="flex items-center gap-1.5">
+                                  {item.type === 'ORDER' && (
+                                    <span className="px-1.5 py-0.5 bg-sky-600 text-white text-[8px] font-black rounded uppercase">
+                                      📱 অফার অর্ডার
+                                    </span>
+                                  )}
+                                  {item.type === 'DEPOSIT' && (
+                                    <span className="px-1.5 py-0.5 bg-emerald-600 text-white text-[8px] font-black rounded uppercase">
+                                      💳 ডিপোজিট
+                                    </span>
+                                  )}
+                                  {item.type === 'LOAN' && (
+                                    <span className={`px-1.5 py-0.5 text-white text-[8px] font-black rounded uppercase ${
+                                      item.rawLoan?.type === 'GIVEN' ? 'bg-amber-600' : 'bg-blue-600'
+                                    }`}>
+                                      💰 {item.rawLoan?.type === 'GIVEN' ? 'লোন গ্রহণ' : 'স্বয়ংক্রিয় লোন কর্তন'}
+                                    </span>
+                                  )}
+                                  
+                                  <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${
+                                    item.status === 'Successful' || item.status === 'Approved' ? 'bg-emerald-100 text-emerald-700' :
+                                    item.status === 'Canceled' || item.status === 'Rejected' ? 'bg-red-100 text-red-600' :
+                                    item.status === 'Given' ? 'bg-amber-100 text-amber-700' :
+                                    item.status === 'Repaid' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'
+                                  }`}>
+                                    {item.status}
+                                  </span>
+                                </div>
+                                <h4 className="text-xs font-extrabold text-slate-800 pt-0.5">{item.title}</h4>
+                              </div>
 
-                      return (
-                        <div key={req.id} className="p-3 bg-slate-50 rounded-xl border border-slate-100 hover:bg-slate-100 transition space-y-1.5 animate-fade-in">
-                          <div className="flex justify-between items-center">
-                            <div className="flex items-center gap-1.5">
-                              <span className={`px-1.5 py-0.5 rounded text-[8px] font-black text-white ${getMethodColor(req.method, req.senderNumber)}`}>
-                                {displayBadge}
-                              </span>
-                              <span className={`text-xs font-black ${isCut ? 'text-rose-600' : 'text-emerald-600'}`}>
-                                {isCut ? `- ${req.amount} Tk` : `+ ${req.amount} Tk`}
+                              <span className="font-mono font-black text-xs text-slate-800 shrink-0">
+                                {item.amount}
                               </span>
                             </div>
-                            
-                            <span className={`text-[10px] font-bold ${
-                              req.status === 'Approved' ? 'text-emerald-600' :
-                              req.status === 'Rejected' ? 'text-red-500' : 'text-amber-500'
+
+                            <p className="text-[10px] text-slate-500 font-medium">{item.subtitle}</p>
+
+                            <div className="flex justify-between items-center text-[9px] text-slate-400 font-bold border-t border-slate-200/50 pt-1.5">
+                              <span className="font-mono text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">
+                                📅 {new Date(parseDateToMs(item.createdAt)).toLocaleString('en-US', { hour12: true })}
+                              </span>
+                              <span className="text-slate-400">#{item.id.slice(-6)}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* VIEW 2: ORDERS ONLY */}
+              {historySubTab === 'orders' && (
+                <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100">
+                  <h3 className="text-xs font-black uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-1">
+                    <Smartphone className="w-4 h-4 text-sky-500" />
+                    My Offer Purchase Orders
+                  </h3>
+
+                  {userOrders.length === 0 ? (
+                    <p className="text-center text-slate-400 text-xs py-4 font-medium">কোন অফার অর্ডার করেননি এখনও।</p>
+                  ) : (
+                    <div className="space-y-3.5 max-h-[500px] overflow-y-auto pr-1">
+                      {userOrders.map(order => (
+                        <div key={order.id} className="p-3 bg-slate-50 rounded-xl border border-slate-100 hover:bg-slate-100 transition space-y-2 animate-fade-in">
+                          <div className="flex justify-between items-start gap-2">
+                            <div>
+                              <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[8px] font-black uppercase ${
+                                order.operator === 'GP' ? 'bg-blue-600 text-white' :
+                                order.operator === 'Robi' ? 'bg-red-600 text-white' :
+                                order.operator === 'Airtel' ? 'bg-rose-600 text-white' :
+                                order.operator === 'Banglalink' ? 'bg-orange-600 text-white' : 'bg-emerald-600 text-white'
+                              }`}>
+                                <OperatorLogo operator={order.operator} className="w-3 h-3" />
+                                <span>{order.operator}</span>
+                              </span>
+                              <h4 className="text-xs font-extrabold text-slate-800 mt-1">{order.offerTitle}</h4>
+                            </div>
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black shrink-0 ${
+                              order.status === 'Successful' ? 'bg-emerald-500/10 text-emerald-600' :
+                              order.status === 'Canceled' ? 'bg-red-500/10 text-red-600' : 'bg-amber-500/10 text-amber-600 animate-pulse'
                             }`}>
-                              {req.status}
+                              {order.status === 'Successful' && 'Successful'}
+                              {order.status === 'Canceled' && 'Refunded'}
+                              {order.status === 'Pending' && 'Pending'}
                             </span>
                           </div>
 
-                          <div className="text-[10px] text-slate-400 flex justify-between items-center font-mono pt-1 border-t border-slate-100/50">
-                            <span>TxID: {req.transactionId}</span>
-                            <span>Sender: {req.senderNumber}</span>
+                          <div className="flex justify-between items-center text-[10px] text-slate-500 border-t border-slate-200/50 pt-2">
+                            <span>Target: <strong className="font-mono text-slate-800">{order.targetPhone}</strong></span>
+                            <span className="font-bold text-slate-800">{order.offerPrice} Tk</span>
                           </div>
-                          <div className="text-[9px] text-slate-400 flex justify-between items-center font-medium pt-1">
-                            <span>Time: {new Date(req.createdAt).toLocaleString('en-US', { hour12: true })}</span>
-                            <span>#{req.id.slice(-6)}</span>
+                          <div className="flex justify-between items-center text-[9px] text-slate-400 font-medium pt-1">
+                            <span>Time: {new Date(parseDateToMs(order.createdAt)).toLocaleString('en-US', { hour12: true })}</span>
+                            <span>#{order.id.slice(-6)}</span>
                           </div>
                         </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-
-              {/* Loan & Auto-Repayment History Log */}
-              <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 space-y-3">
-                <div className="flex justify-between items-center">
-                  <h3 className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-1">
-                    <Award className="w-4 h-4 text-amber-500" />
-                    Loan & Auto-Repayment Log (লোন হিস্টোরি)
-                  </h3>
-                  <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200">
-                    বকেয়া: ৳{user.loanDue || 0}
-                  </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
+              )}
 
-                {userLoans.length === 0 ? (
-                  <p className="text-center text-slate-400 text-xs py-4 font-medium">কোনো লোন বা স্বয়ংক্রিয় কর্তনের তথ্য নেই।</p>
-                ) : (
-                  <div className="space-y-3 max-h-[250px] overflow-y-auto pr-1">
-                    {userLoans.map(loan => (
-                      <div key={loan.id} className="p-3 bg-slate-50 rounded-xl border border-slate-100 hover:bg-slate-100 transition space-y-1.5 animate-fade-in">
-                        <div className="flex justify-between items-center">
-                          <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase text-white ${
-                            loan.type === 'GIVEN' ? 'bg-amber-600' : 'bg-blue-600'
-                          }`}>
-                            {loan.type === 'GIVEN' ? 'লোন গ্রহণ' : 'স্বয়ংক্রিয় লোন পরিশোধ'}
-                          </span>
+              {/* VIEW 3: DEPOSITS ONLY */}
+              {historySubTab === 'deposits' && (
+                <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100">
+                  <h3 className="text-xs font-black uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-1">
+                    <History className="w-4 h-4 text-blue-500" />
+                    Deposit Requests Log
+                  </h3>
 
-                          <span className={`text-xs font-black ${loan.type === 'GIVEN' ? 'text-amber-600' : 'text-blue-600'}`}>
-                            {loan.type === 'GIVEN' ? `+ ${loan.amount} Tk` : `- ${loan.amount} Tk`}
-                          </span>
-                        </div>
+                  {userDeposits.length === 0 ? (
+                    <p className="text-center text-slate-400 text-xs py-4 font-medium">কোনো ডিপোজিট অনুরোধ নেই।</p>
+                  ) : (
+                    <div className="space-y-3.5 max-h-[500px] overflow-y-auto pr-1">
+                      {userDeposits.map(req => {
+                        const isCut = req.senderNumber?.includes('Cut') || req.senderNumber?.includes('কর্তন') || (req.method as string) === 'Admin Cut';
+                        const isAddAdjustment = req.senderNumber?.includes('Add') || req.senderNumber?.includes('যোগ') || (req.method as string) === 'Admin Add';
+                        const displayBadge = isCut ? 'Admin Cut' : isAddAdjustment ? 'Admin Add' : req.method;
 
-                        <p className="text-[11px] font-bold text-slate-700">{loan.note}</p>
+                        return (
+                          <div key={req.id} className="p-3 bg-slate-50 rounded-xl border border-slate-100 hover:bg-slate-100 transition space-y-1.5 animate-fade-in">
+                            <div className="flex justify-between items-center">
+                              <div className="flex items-center gap-1.5">
+                                <span className={`px-1.5 py-0.5 rounded text-[8px] font-black text-white ${getMethodColor(req.method, req.senderNumber)}`}>
+                                  {displayBadge}
+                                </span>
+                                <span className={`text-xs font-black ${isCut ? 'text-rose-600' : 'text-emerald-600'}`}>
+                                  {isCut ? `- ${req.amount} Tk` : `+ ${req.amount} Tk`}
+                                </span>
+                              </div>
+                              
+                              <span className={`text-[10px] font-bold ${
+                                req.status === 'Approved' ? 'text-emerald-600' :
+                                req.status === 'Rejected' ? 'text-red-500' : 'text-amber-500'
+                              }`}>
+                                {req.status}
+                              </span>
+                            </div>
 
-                        <div className="text-[9px] text-slate-400 flex justify-between items-center font-medium pt-1 border-t border-slate-200/50">
-                          <span>পরিশোধের পর বকেয়া: <strong className="text-slate-800 font-mono">৳{loan.remainingDue}</strong></span>
-                          <span>{new Date(loan.createdAt).toLocaleString('en-US', { hour12: true })}</span>
-                        </div>
-                      </div>
-                    ))}
+                            <div className="text-[10px] text-slate-400 flex justify-between items-center font-mono pt-1 border-t border-slate-100/50">
+                              <span>TxID: {req.transactionId}</span>
+                              <span>Sender: {req.senderNumber}</span>
+                            </div>
+                            <div className="text-[9px] text-slate-400 flex justify-between items-center font-medium pt-1">
+                              <span>Time: {new Date(parseDateToMs(req.createdAt)).toLocaleString('en-US', { hour12: true })}</span>
+                              <span>#{req.id.slice(-6)}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* VIEW 4: LOANS ONLY */}
+              {historySubTab === 'loans' && (
+                <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 space-y-3">
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-1">
+                      <Award className="w-4 h-4 text-amber-500" />
+                      Loan & Auto-Repayment Log (লোন হিস্টোরি)
+                    </h3>
+                    <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200">
+                      বকেয়া: ৳{user.loanDue || 0}
+                    </span>
                   </div>
-                )}
-              </div>
+
+                  {userLoans.length === 0 ? (
+                    <p className="text-center text-slate-400 text-xs py-4 font-medium">কোনো লোন বা স্বয়ংক্রিয় কর্তনের তথ্য নেই।</p>
+                  ) : (
+                    <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
+                      {userLoans.map(loan => (
+                        <div key={loan.id} className="p-3 bg-slate-50 rounded-xl border border-slate-100 hover:bg-slate-100 transition space-y-1.5 animate-fade-in">
+                          <div className="flex justify-between items-center">
+                            <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase text-white ${
+                              loan.type === 'GIVEN' ? 'bg-amber-600' : 'bg-blue-600'
+                            }`}>
+                              {loan.type === 'GIVEN' ? 'লোন গ্রহণ' : 'স্বয়ংক্রিয় লোন পরিশোধ'}
+                            </span>
+
+                            <span className={`text-xs font-black ${loan.type === 'GIVEN' ? 'text-amber-600' : 'text-blue-600'}`}>
+                              {loan.type === 'GIVEN' ? `+ ${loan.amount} Tk` : `- ${loan.amount} Tk`}
+                            </span>
+                          </div>
+
+                          <p className="text-[11px] font-bold text-slate-700">{loan.note}</p>
+
+                          <div className="text-[9px] text-slate-400 flex justify-between items-center font-medium pt-1 border-t border-slate-200/50">
+                            <span>পরিশোধের পর বকেয়া: <strong className="text-slate-800 font-mono">৳{loan.remainingDue}</strong></span>
+                            <span>{new Date(parseDateToMs(loan.createdAt)).toLocaleString('en-US', { hour12: true })}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
             </div>
           )}
 

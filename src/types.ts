@@ -79,3 +79,28 @@ export interface AppConfig {
   supportYoutube: string;
   noticeText: string;
 }
+
+export function parseDateToMs(dateVal: any): number {
+  if (!dateVal) return 0;
+  if (typeof dateVal === 'number') return dateVal;
+  if (typeof dateVal === 'object' && dateVal.seconds) {
+    return dateVal.seconds * 1000;
+  }
+  if (typeof dateVal === 'string') {
+    const t = new Date(dateVal).getTime();
+    if (!isNaN(t)) return t;
+    const match = dateVal.match(/(\d+)[/.-](\d+)[/.-](\d+)/);
+    if (match) {
+      const p1 = parseInt(match[1], 10);
+      const p2 = parseInt(match[2], 10);
+      const p3 = parseInt(match[3], 10);
+      if (p3 > 1000) {
+        const d1 = new Date(p3, p1 - 1, p2).getTime();
+        if (!isNaN(d1)) return d1;
+        const d2 = new Date(p3, p2 - 1, p1).getTime();
+        if (!isNaN(d2)) return d2;
+      }
+    }
+  }
+  return 0;
+}
