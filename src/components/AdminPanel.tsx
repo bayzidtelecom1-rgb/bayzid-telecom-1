@@ -2249,11 +2249,11 @@ export default function AdminPanel({
       {/* GRANT LOAN MODAL */}
       {grantLoanUserId && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 animate-fade-in">
-          <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 w-full max-w-sm space-y-4 shadow-2xl">
-            <div className="flex justify-between items-center">
+          <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 w-full max-w-md space-y-4 shadow-2xl">
+            <div className="flex justify-between items-center border-b border-slate-700/80 pb-3">
               <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
                 <DollarSign className="w-4 h-4 text-amber-400" />
-                রিসেলারকে লোন প্রদান করুন
+                রিসেলারকে লোন প্রদান করুন (Grant Loan)
               </h3>
               <button
                 type="button"
@@ -2264,9 +2264,33 @@ export default function AdminPanel({
               </button>
             </div>
 
+            {/* Firebase User Selector Dropdown Box */}
+            <div className="space-y-1.5">
+              <label className="block text-[11px] font-bold text-amber-400 uppercase tracking-wider flex items-center justify-between">
+                <span>মোবাইল নম্বর / ইউজার সিলেক্ট করুন (Firebase User List)</span>
+                <span className="text-[9px] text-slate-400 font-normal">মোট ইউজার: {users.filter(u => u.role !== 'admin').length}</span>
+              </label>
+
+              <select
+                value={grantLoanUserId}
+                onChange={(e) => setGrantLoanUserId(e.target.value)}
+                className="w-full bg-slate-900 border-2 border-amber-500/50 rounded-xl p-3 text-xs font-bold text-white focus:outline-none focus:border-amber-400 font-mono cursor-pointer shadow-inner"
+              >
+                {users
+                  .filter(u => u.role !== 'admin')
+                  .map(u => (
+                    <option key={u.id} value={u.id} className="bg-slate-900 text-white font-mono py-1">
+                      📱 {u.phone || 'নম্বর নেই'} — 👤 {u.name} (ব্যালেন্স: ৳{u.balance} | বকেয়া: ৳{u.loanDue || 0})
+                    </option>
+                  ))}
+              </select>
+            </div>
+
             {(() => {
               const selectedUser = users.find(u => u.id === grantLoanUserId);
-              if (!selectedUser) return null;
+              if (!selectedUser) return (
+                <p className="text-xs text-slate-400 text-center py-4">অনুগ্রহ করে উপর থেকে ইউজার সিলেক্ট করুন।</p>
+              );
 
               return (
                 <form
@@ -2279,17 +2303,29 @@ export default function AdminPanel({
                     }
                     if (onGrantLoan) {
                       onGrantLoan(selectedUser.id, amt, grantLoanNote || 'এডমিন কর্তৃক লোন প্রদান');
-                      alert(`৳${amt} লোন সফলভাবে ${selectedUser.name}-কে প্রদান করা হয়েছে!`);
+                      alert(`৳${amt} লোন সফলভাবে ${selectedUser.name} (${selectedUser.phone})-কে প্রদান করা হয়েছে!`);
                     }
                     setGrantLoanUserId(null);
                   }}
                   className="space-y-4"
                 >
-                  <div className="p-3 bg-slate-900/80 rounded-xl border border-slate-700 space-y-1 text-xs">
-                    <p className="text-slate-400">গ্রহীতা: <strong className="text-white">{selectedUser.name}</strong></p>
-                    <p className="text-slate-400">মোবাইল: <span className="font-mono text-white">{selectedUser.phone}</span></p>
-                    <p className="text-slate-400">বর্তমান ব্যালেন্স: <span className="font-mono text-emerald-400 font-bold">৳{selectedUser.balance}</span></p>
-                    <p className="text-slate-400">বর্তমান বকেয়া লোন: <span className="font-mono text-amber-400 font-bold">৳{selectedUser.loanDue || 0}</span></p>
+                  <div className="p-3.5 bg-slate-900/90 rounded-xl border border-amber-500/30 space-y-1.5 text-xs shadow-sm">
+                    <div className="flex justify-between items-center border-b border-slate-800 pb-1.5">
+                      <span className="text-slate-400">সিলেক্টেড ইউজার:</span>
+                      <strong className="text-white font-bold">{selectedUser.name}</strong>
+                    </div>
+                    <div className="flex justify-between items-center border-b border-slate-800 pb-1.5">
+                      <span className="text-slate-400">মোবাইল নম্বর:</span>
+                      <span className="font-mono text-amber-400 font-black text-sm">{selectedUser.phone}</span>
+                    </div>
+                    <div className="flex justify-between items-center border-b border-slate-800 pb-1.5">
+                      <span className="text-slate-400">বর্তমান ব্যালেন্স:</span>
+                      <span className="font-mono text-emerald-400 font-extrabold">৳{selectedUser.balance}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-400">বর্তমান বকেয়া লোন:</span>
+                      <span className="font-mono text-amber-400 font-black">৳{selectedUser.loanDue || 0}</span>
+                    </div>
                   </div>
 
                   <div>
@@ -2304,7 +2340,7 @@ export default function AdminPanel({
                       className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm font-bold text-amber-400 focus:outline-none focus:border-amber-500 font-mono"
                     />
                     <p className="text-[10px] text-slate-400 mt-1">
-                      লোন দিলে ইউজারের অ্যাকাউন্টে তৎক্ষণাৎ টাকা যোগ হবে এবং পরবর্তীতে ব্যালেন্স এড করার সাথে সাথে এই টাকা অটো কেটে নেওয়া হবে।
+                      💡 এই লোন প্রদান করলে ইউজারের অ্যাকাউন্টে টাকা যোগ হবে। পরবর্তীতে এই ইউজার ({selectedUser.phone}) টাকা এড করলে Firebase স্বয়ংক্রিয়ভাবে ব্যালেন্স এড থেকে লোন কেটে নেবে।
                     </p>
                   </div>
 
@@ -2323,13 +2359,13 @@ export default function AdminPanel({
                     <button
                       type="button"
                       onClick={() => setGrantLoanUserId(null)}
-                      className="px-3 py-2 bg-slate-700 hover:bg-slate-650 text-slate-300 rounded-lg text-xs font-bold cursor-pointer"
+                      className="px-3.5 py-2 bg-slate-700 hover:bg-slate-650 text-slate-300 rounded-lg text-xs font-bold cursor-pointer transition"
                     >
                       বাতিল
                     </button>
                     <button
                       type="submit"
-                      className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold cursor-pointer shadow-lg shadow-amber-900/30 flex items-center gap-1"
+                      className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold cursor-pointer shadow-lg shadow-amber-900/30 flex items-center gap-1 transition"
                     >
                       <DollarSign className="w-3.5 h-3.5" />
                       কনফার্ম লোন প্রদান

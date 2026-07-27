@@ -413,13 +413,14 @@ export async function approveDepositRequest(depositId: string, amount: number): 
       const currentBalance = Number(userData.balance) || 0;
       const currentLoan = Number(userData.loanDue) || 0;
 
+      const actualAmount = Number(amount) || Number(depositData.amount) || 0;
       let repayAmount = 0;
-      let addToBalance = amount;
+      let addToBalance = actualAmount;
       let newLoanDue = currentLoan;
 
       if (currentLoan > 0) {
-        repayAmount = Math.min(currentLoan, amount);
-        addToBalance = amount - repayAmount;
+        repayAmount = Math.min(currentLoan, actualAmount);
+        addToBalance = actualAmount - repayAmount;
         newLoanDue = currentLoan - repayAmount;
 
         // Record loan repayment in loan_records
@@ -430,7 +431,7 @@ export async function approveDepositRequest(depositId: string, amount: number): 
           userPhone: userData.phone || '',
           amount: repayAmount,
           type: 'REPAID',
-          note: `ব্যালেন্স এড (৳${amount}) হতে স্বয়ংক্রিয় লোন কর্তন`,
+          note: `ব্যালেন্স এড (৳${actualAmount}) হতে স্বয়ংক্রিয় লোন কর্তন`,
           createdAt: new Date().toISOString(),
           remainingDue: newLoanDue
         });
