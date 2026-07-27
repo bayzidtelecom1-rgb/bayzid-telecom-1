@@ -29,7 +29,7 @@ import {
   CheckSquare,
   AlertTriangle
 } from 'lucide-react';
-import { User, Offer, BalanceRequest, OfferOrder, AppConfig, OperatorName } from '../types';
+import { User, Offer, BalanceRequest, OfferOrder, AppConfig, OperatorName, LoanRecord } from '../types';
 import { OperatorLogo } from './UserApp';
 
 interface AdminPanelProps {
@@ -37,7 +37,9 @@ interface AdminPanelProps {
   offers: Offer[];
   balanceRequests: BalanceRequest[];
   orders: OfferOrder[];
+  loanRecords?: LoanRecord[];
   config: AppConfig;
+  onGrantLoan?: (userId: string, amount: number, note?: string) => void;
   onApproveBalance: (id: string) => void;
   onRejectBalance: (id: string) => void;
   onAddOffer: (offer: Omit<Offer, 'id' | 'isActive'>) => void;
@@ -60,7 +62,9 @@ export default function AdminPanel({
   offers,
   balanceRequests,
   orders,
+  loanRecords = [],
   config,
+  onGrantLoan,
   onApproveBalance,
   onRejectBalance,
   onAddOffer,
@@ -77,7 +81,10 @@ export default function AdminPanel({
   onDeleteAllUsers,
   onBulkToggleOfferStatus,
 }: AdminPanelProps) {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'approvals' | 'offers' | 'orders' | 'settings'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'approvals' | 'offers' | 'orders' | 'loans' | 'settings'>('dashboard');
+  const [grantLoanUserId, setGrantLoanUserId] = useState<string | null>(null);
+  const [grantLoanAmount, setGrantLoanAmount] = useState<string>('');
+  const [grantLoanNote, setGrantLoanNote] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState('');
   const [orderFilterTab, setOrderFilterTab] = useState<'Pending' | 'Successful' | 'Canceled'>('Pending');
   const [copiedOrderId, setCopiedOrderId] = useState<string | null>(null);
@@ -436,6 +443,7 @@ export default function AdminPanel({
             { id: 'approvals', label: `Add Money Approvals (${pendingApprovalsCount})`, icon: CreditCard, alert: pendingApprovalsCount > 0 },
             { id: 'orders', label: `Pending Orders (${pendingOrdersCount})`, icon: Smartphone, alert: pendingOrdersCount > 0 },
             { id: 'offers', label: 'Manage Packs', icon: PlusCircle },
+            { id: 'loans', label: 'Loans (লোন তথ্য)', icon: DollarSign },
             { id: 'settings', label: 'Settings & Branding', icon: Settings },
           ].map(tab => {
             const Icon = tab.icon;
@@ -1209,12 +1217,30 @@ export default function AdminPanel({
                                 </div>
                                 <div className="text-right">
                                   <span className="text-sm font-black text-emerald-400 block">{user.balance} Tk</span>
-                                  <button
-                                    onClick={() => handleStartEditUser(user)}
-                                    className="px-2.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-[10px] font-bold mt-1.5 transition cursor-pointer"
-                                  >
-                                    Edit Account
-                                  </button>
+                                  {(user.loanDue || 0) > 0 && (
+                                    <span className="text-[10px] font-extrabold text-amber-400 block">
+                                      বকেয়া লোন: ৳{user.loanDue}
+                                    </span>
+                                  )}
+                                  <div className="flex gap-1.5 justify-end mt-1.5">
+                                    <button
+                                      onClick={() => {
+                                        setGrantLoanUserId(user.id);
+                                        setGrantLoanAmount('');
+                                        setGrantLoanNote('এমবি অফার কেনার সুবিধার্থে লোন');
+                                      }}
+                                      className="px-2.5 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-[10px] font-bold transition cursor-pointer flex items-center gap-1 shadow-xs"
+                                    >
+                                      <DollarSign className="w-3 h-3" />
+                                      Give Loan / লোন দিন
+                                    </button>
+                                    <button
+                                      onClick={() => handleStartEditUser(user)}
+                                      className="px-2.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-[10px] font-bold transition cursor-pointer"
+                                    >
+                                      Edit Account
+                                    </button>
+                                  </div>
                                 </div>
                               </div>
                             </div>
@@ -2073,7 +2099,247 @@ export default function AdminPanel({
           </div>
         )}
 
+        {/* TAB 6: LOAN MANAGEMENT & AUTO-REPAYMENT HISTORY */}
+        {activeTab === 'loans' && (
+          <div className="space-y-6">
+            <div className="bg-slate-800 border border-slate-700/50 rounded-xl p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div>
+                <h2 className="text-lg font-extrabold text-white flex items-center gap-2">
+                  <DollarSign className="w-5 h-5 text-amber-500" />
+                  Loan & Auto-Repayment Management (লোন তথ্য)
+                </h2>
+                <p className="text-xs text-slate-400 mt-1">
+                  ইউজারদের লোন প্রদান করুন এবং লোন কর্তনের তথ্য রিয়েল-টাইমে মনিটর করুন।
+                </p>
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    const firstUser = users.find(u => u.role !== 'admin');
+                    if (firstUser) {
+                      setGrantLoanUserId(firstUser.id);
+                      setGrantLoanAmount('');
+                      setGrantLoanNote('এমবি অফার কেনার সুবিধার্থে লোন');
+                    } else {
+                      alert('কোনো সাধারণ ইউজার পাওয়া যায়নি।');
+                    }
+                  }}
+                  className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs rounded-xl transition flex items-center gap-1.5 shadow-lg shadow-amber-900/30 cursor-pointer"
+                >
+                  <PlusCircle className="w-4 h-4" />
+                  নতুন লোন দিন (Grant Loan)
+                </button>
+              </div>
+            </div>
+
+            {/* Metrics */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="bg-slate-800/80 border border-amber-500/30 p-4 rounded-xl space-y-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400">মোট বর্তমান বকেয়া লোন</span>
+                <h3 className="text-xl font-black text-amber-400">
+                  ৳{users.reduce((acc, u) => acc + (u.loanDue || 0), 0)}
+                </h3>
+                <p className="text-[10px] text-slate-400">বর্তমানে সকল ইউজারের কাছে বকেয়া আছে</p>
+              </div>
+
+              <div className="bg-slate-800/80 border border-slate-700 p-4 rounded-xl space-y-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">মোট লোন প্রদান করা হয়েছে</span>
+                <h3 className="text-xl font-black text-white">
+                  ৳{loanRecords.filter(l => l.type === 'GIVEN').reduce((acc, l) => acc + l.amount, 0)}
+                </h3>
+                <p className="text-[10px] text-slate-400">সর্বমোট প্রদানকৃত লোন সংখ্যা: {loanRecords.filter(l => l.type === 'GIVEN').length}</p>
+              </div>
+
+              <div className="bg-slate-800/80 border border-slate-700 p-4 rounded-xl space-y-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">স্বয়ংক্রিয় পরিশোধকৃত লোন</span>
+                <h3 className="text-xl font-black text-emerald-400">
+                  ৳{loanRecords.filter(l => l.type === 'REPAID').reduce((acc, l) => acc + l.amount, 0)}
+                </h3>
+                <p className="text-[10px] text-slate-400">ব্যালেন্স এড থেকে স্বয়ংক্রিয়ভাবে কাটা হয়েছে</p>
+              </div>
+            </div>
+
+            {/* Loans Table */}
+            <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-5 space-y-4">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                <h3 className="text-sm font-bold uppercase text-slate-300 tracking-wider">
+                  সর্বশেষ লোন ও কর্তন রেকর্ডস ({loanRecords.length})
+                </h3>
+                <div className="relative w-full sm:w-64">
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+                  <input
+                    type="text"
+                    placeholder="ইউজার নাম, মোবাইল বা নোট দিয়ে খুঁজুন..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-8 pr-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+              </div>
+
+              {loanRecords.length === 0 ? (
+                <div className="text-center py-12 text-slate-500 text-xs">
+                  কোনো লোন বা স্বয়ংক্রিয় কর্তনের রেকর্ড পাওয়া যায়নি।
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs text-slate-300">
+                    <thead className="text-[10px] uppercase font-bold text-slate-400 bg-slate-900/60 border-b border-slate-700/60">
+                      <tr>
+                        <th className="p-3">ইউজার / রিসেলার</th>
+                        <th className="p-3">টাইপ</th>
+                        <th className="p-3">পরিমাণ (৳)</th>
+                        <th className="p-3">লেনদেন পরবর্তী বকেয়া</th>
+                        <th className="p-3">বিবরণ / নোট</th>
+                        <th className="p-3 text-right">তারিখ ও সময়</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800">
+                      {loanRecords
+                        .filter(l => {
+                          if (!searchQuery) return true;
+                          const q = searchQuery.toLowerCase();
+                          return (
+                            (l.userName && l.userName.toLowerCase().includes(q)) ||
+                            (l.userPhone && l.userPhone.includes(q)) ||
+                            (l.note && l.note.toLowerCase().includes(q))
+                          );
+                        })
+                        .map(loan => (
+                          <tr key={loan.id} className="hover:bg-slate-800/40 transition">
+                            <td className="p-3">
+                              <span className="font-bold text-white block">{loan.userName}</span>
+                              <span className="font-mono text-[10px] text-slate-400">{loan.userPhone}</span>
+                            </td>
+                            <td className="p-3">
+                              <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase text-white ${
+                                loan.type === 'GIVEN' ? 'bg-amber-600' : 'bg-blue-600'
+                              }`}>
+                                {loan.type === 'GIVEN' ? 'লোন প্রদান' : 'স্বয়ংক্রিয় কর্তন'}
+                              </span>
+                            </td>
+                            <td className="p-3 font-extrabold font-mono text-sm">
+                              <span className={loan.type === 'GIVEN' ? 'text-amber-400' : 'text-blue-400'}>
+                                {loan.type === 'GIVEN' ? `+ ৳${loan.amount}` : `- ৳${loan.amount}`}
+                              </span>
+                            </td>
+                            <td className="p-3 font-mono font-bold text-slate-300">
+                              ৳{loan.remainingDue}
+                            </td>
+                            <td className="p-3 text-slate-300 text-[11px]">
+                              {loan.note}
+                            </td>
+                            <td className="p-3 text-right text-[10px] text-slate-400 font-medium">
+                              {new Date(loan.createdAt).toLocaleString('en-US', { hour12: true })}
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
       </div>
+
+      {/* GRANT LOAN MODAL */}
+      {grantLoanUserId && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 animate-fade-in">
+          <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 w-full max-w-sm space-y-4 shadow-2xl">
+            <div className="flex justify-between items-center">
+              <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+                <DollarSign className="w-4 h-4 text-amber-400" />
+                রিসেলারকে লোন প্রদান করুন
+              </h3>
+              <button
+                type="button"
+                onClick={() => setGrantLoanUserId(null)}
+                className="text-slate-400 hover:text-white cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {(() => {
+              const selectedUser = users.find(u => u.id === grantLoanUserId);
+              if (!selectedUser) return null;
+
+              return (
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    const amt = Number(grantLoanAmount);
+                    if (!amt || amt <= 0) {
+                      alert('অনুগ্রহ করে সঠিক লোন পরিমাণ লিখুন।');
+                      return;
+                    }
+                    if (onGrantLoan) {
+                      onGrantLoan(selectedUser.id, amt, grantLoanNote || 'এডমিন কর্তৃক লোন প্রদান');
+                      alert(`৳${amt} লোন সফলভাবে ${selectedUser.name}-কে প্রদান করা হয়েছে!`);
+                    }
+                    setGrantLoanUserId(null);
+                  }}
+                  className="space-y-4"
+                >
+                  <div className="p-3 bg-slate-900/80 rounded-xl border border-slate-700 space-y-1 text-xs">
+                    <p className="text-slate-400">গ্রহীতা: <strong className="text-white">{selectedUser.name}</strong></p>
+                    <p className="text-slate-400">মোবাইল: <span className="font-mono text-white">{selectedUser.phone}</span></p>
+                    <p className="text-slate-400">বর্তমান ব্যালেন্স: <span className="font-mono text-emerald-400 font-bold">৳{selectedUser.balance}</span></p>
+                    <p className="text-slate-400">বর্তমান বকেয়া লোন: <span className="font-mono text-amber-400 font-bold">৳{selectedUser.loanDue || 0}</span></p>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-300 uppercase mb-1">লোনের পরিমাণ (টাকা) *</label>
+                    <input
+                      type="number"
+                      required
+                      min="1"
+                      placeholder="যেমন: 500"
+                      value={grantLoanAmount}
+                      onChange={(e) => setGrantLoanAmount(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm font-bold text-amber-400 focus:outline-none focus:border-amber-500 font-mono"
+                    />
+                    <p className="text-[10px] text-slate-400 mt-1">
+                      লোন দিলে ইউজারের অ্যাকাউন্টে তৎক্ষণাৎ টাকা যোগ হবে এবং পরবর্তীতে ব্যালেন্স এড করার সাথে সাথে এই টাকা অটো কেটে নেওয়া হবে।
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-300 uppercase mb-1">নোট / বিবরণ (ঐচ্ছিক)</label>
+                    <input
+                      type="text"
+                      placeholder="যেমন: এমবি অফার কেনার সুবিধার্থে লোন"
+                      value={grantLoanNote}
+                      onChange={(e) => setGrantLoanNote(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+
+                  <div className="flex gap-2 pt-2 justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setGrantLoanUserId(null)}
+                      className="px-3 py-2 bg-slate-700 hover:bg-slate-650 text-slate-300 rounded-lg text-xs font-bold cursor-pointer"
+                    >
+                      বাতিল
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold cursor-pointer shadow-lg shadow-amber-900/30 flex items-center gap-1"
+                    >
+                      <DollarSign className="w-3.5 h-3.5" />
+                      কনফার্ম লোন প্রদান
+                    </button>
+                  </div>
+                </form>
+              );
+            })()}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

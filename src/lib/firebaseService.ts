@@ -12,7 +12,7 @@ import {
   orderBy, 
   runTransaction 
 } from 'firebase/firestore';
-import { User, Offer, BalanceRequest, OfferOrder, AppConfig, OperatorName } from '../types';
+import { User, Offer, BalanceRequest, OfferOrder, AppConfig, OperatorName, LoanRecord } from '../types';
 
 // Helper to map AppConfig
 function mapAppSettings(data: any): AppConfig {
@@ -242,6 +242,7 @@ export async function fetchUsersProfiles(): Promise<User[] | null> {
         name: data.name || doc.id,
         phone: data.phone || '',
         balance: Number(data.balance) || 0,
+        loanDue: Number(data.loanDue) || 0,
         role: data.role || 'user',
         level: data.level || 'Retailer',
         verified: data.verified !== false,
@@ -286,6 +287,7 @@ export async function updateUserProfile(userId: string, fields: Partial<User>): 
     const docRef = doc(db, 'users', userId);
     const payload: any = {};
     if (fields.balance !== undefined) payload.balance = fields.balance;
+    if (fields.loanDue !== undefined) payload.loanDue = fields.loanDue;
     if (fields.level) payload.level = fields.level;
     if (fields.password) payload.password = fields.password;
     if (fields.pin) payload.pin = fields.pin;
@@ -407,10 +409,36 @@ export async function approveDepositRequest(depositId: string, amount: number): 
         throw new Error('User does not exist');
       }
 
-      const currentBalance = Number(userSnap.data().balance) || 0;
-      const newBalance = currentBalance + amount;
+      const userData = userSnap.data();
+      const currentBalance = Number(userData.balance) || 0;
+      const currentLoan = Number(userData.loanDue) || 0;
 
-      transaction.update(userRef, { balance: newBalance });
+      let repayAmount = 0;
+      let addToBalance = amount;
+      let newLoanDue = currentLoan;
+
+      if (currentLoan > 0) {
+        repayAmount = Math.min(currentLoan, amount);
+        addToBalance = amount - repayAmount;
+        newLoanDue = currentLoan - repayAmount;
+
+        // Record loan repayment in loan_records
+        const loanRecordRef = doc(collection(db, 'loan_records'));
+        transaction.set(loanRecordRef, {
+          userId,
+          userName: userData.name || 'Reseller',
+          userPhone: userData.phone || '',
+          amount: repayAmount,
+          type: 'REPAID',
+          note: `ব্যালেন্স এড (৳${amount}) হতে স্বয়ংক্রিয় লোন কর্তন`,
+          createdAt: new Date().toISOString(),
+          remainingDue: newLoanDue
+        });
+      }
+
+      const newBalance = currentBalance + addToBalance;
+
+      transaction.update(userRef, { balance: newBalance, loanDue: newLoanDue });
       transaction.update(depositRef, { status: 'Approved' });
     });
 
@@ -424,6 +452,77 @@ export async function approveDepositRequest(depositId: string, amount: number): 
     } catch (e) {
       return false;
     }
+  }
+}
+
+// 4.1 Loan Management API
+export async function grantLoanToUser(userId: string, amount: number, note?: string): Promise<boolean> {
+  if (!db) return false;
+  try {
+    await runTransaction(db, async (transaction) => {
+      const userRef = doc(db, 'users', userId);
+      const userSnap = await transaction.get(userRef);
+
+      if (!userSnap.exists()) {
+        throw new Error('User does not exist');
+      }
+
+      const userData = userSnap.data();
+      const currentBalance = Number(userData.balance) || 0;
+      const currentLoan = Number(userData.loanDue) || 0;
+
+      const newBalance = currentBalance + amount;
+      const newLoanDue = currentLoan + amount;
+
+      transaction.update(userRef, {
+        balance: newBalance,
+        loanDue: newLoanDue
+      });
+
+      const loanRecordRef = doc(collection(db, 'loan_records'));
+      transaction.set(loanRecordRef, {
+        userId,
+        userName: userData.name || 'Reseller',
+        userPhone: userData.phone || '',
+        amount,
+        type: 'GIVEN',
+        note: note || 'এডমিন কর্তৃক লোন প্রদান',
+        createdAt: new Date().toISOString(),
+        remainingDue: newLoanDue
+      });
+    });
+
+    return true;
+  } catch (err) {
+    console.warn('Transaction failed for granting loan:', err);
+    return false;
+  }
+}
+
+export async function fetchLoanRecords(): Promise<LoanRecord[]> {
+  if (!db) return [];
+  try {
+    const q = query(collection(db, 'loan_records'), orderBy('createdAt', 'desc'));
+    const querySnapshot = await getDocs(q);
+    const records: LoanRecord[] = [];
+    querySnapshot.forEach((docSnap) => {
+      const data = docSnap.data();
+      records.push({
+        id: docSnap.id,
+        userId: data.userId,
+        userName: data.userName || 'Reseller',
+        userPhone: data.userPhone || '',
+        amount: Number(data.amount) || 0,
+        type: data.type as 'GIVEN' | 'REPAID',
+        note: data.note || '',
+        createdAt: data.createdAt,
+        remainingDue: Number(data.remainingDue) || 0
+      });
+    });
+    return records;
+  } catch (err) {
+    console.warn('Error fetching loan records:', err);
+    return [];
   }
 }
 

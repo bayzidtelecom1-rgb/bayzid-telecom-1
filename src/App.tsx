@@ -6,7 +6,7 @@ import {
   INITIAL_BALANCE_REQUESTS, 
   INITIAL_ORDERS 
 } from './data';
-import { User, Offer, BalanceRequest, OfferOrder, AppConfig, OperatorName } from './types';
+import { User, Offer, BalanceRequest, OfferOrder, AppConfig, OperatorName, LoanRecord } from './types';
 import UserApp from './components/UserApp';
 import AdminPanel from './components/AdminPanel';
 import { Shield, Sparkles, Smartphone, LogOut, CheckCircle, SmartphoneIcon, User as UserIcon, Settings, Plus, RotateCcw } from 'lucide-react';
@@ -34,7 +34,9 @@ import {
   deleteAllOrders,
   deleteAllDeposits,
   deleteAllUsersExceptAdmin,
-  bulkUpdateDriveOffersStatus
+  bulkUpdateDriveOffersStatus,
+  grantLoanToUser,
+  fetchLoanRecords
 } from './lib/firebaseService';
 
 const isSupabaseConfigured = () => Boolean(db);
@@ -67,6 +69,8 @@ export default function App() {
     const saved = localStorage.getItem('bayzid_telecom_orders');
     return saved ? JSON.parse(saved) : INITIAL_ORDERS;
   });
+
+  const [loanRecords, setLoanRecords] = useState<LoanRecord[]>([]);
 
   const [selectedUserId, setSelectedUserId] = useState<string>(() => {
     return localStorage.getItem('bayzid_telecom_selected_user_id') || '00000000-0000-0000-0000-000000000000';
@@ -129,6 +133,11 @@ export default function App() {
       const dbOrders = await fetchOrders();
       if (dbOrders) {
         setOrders(dbOrders);
+      }
+
+      const dbLoans = await fetchLoanRecords();
+      if (dbLoans) {
+        setLoanRecords(dbLoans);
       }
 
       setIsDbConnected(true);
@@ -209,6 +218,7 @@ export default function App() {
           name: data.name || docSnap.id,
           phone: data.phone || '',
           balance: Number(data.balance) || 0,
+          loanDue: Number(data.loanDue) || 0,
           role: data.role || 'user',
           level: data.level || 'Retailer',
           verified: data.verified !== false,
@@ -263,12 +273,32 @@ export default function App() {
       setOrders(dbOrders);
     });
 
+    const unsubLoans = onSnapshot(collection(db, 'loan_records'), (snapshot) => {
+      const dbLoans: LoanRecord[] = [];
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        dbLoans.push({
+          id: docSnap.id,
+          userId: data.userId,
+          userName: data.userName || 'Reseller',
+          userPhone: data.userPhone || '',
+          amount: Number(data.amount) || 0,
+          type: data.type as 'GIVEN' | 'REPAID',
+          note: data.note || '',
+          createdAt: data.createdAt,
+          remainingDue: Number(data.remainingDue) || 0
+        });
+      });
+      setLoanRecords(dbLoans.sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+    });
+
     return () => {
       unsubSettings();
       unsubOffers();
       unsubUsers();
       unsubDeposits();
       unsubOrders();
+      unsubLoans();
     };
   }, []);
 
@@ -443,16 +473,40 @@ export default function App() {
     }
   };
 
-  // Callback: Admin approves deposit request
+  // Callback: Admin approves deposit request with auto-loan repayment calculation
   const handleApproveBalance = async (id: string) => {
     const request = balanceRequests.find(r => r.id === id);
     if (!request || request.status !== 'Pending') return;
 
-    // Optimistic
+    // Optimistic auto-repayment update
     setBalanceRequests(prev => prev.map(r => r.id === id ? { ...r, status: 'Approved' } : r));
     setUsers(prevUsers => prevUsers.map(u => {
       if (u.id === request.userId) {
-        return { ...u, balance: u.balance + request.amount };
+        const currentLoan = u.loanDue || 0;
+        const repayAmount = Math.min(currentLoan, request.amount);
+        const addToBalance = request.amount - repayAmount;
+        const newLoanDue = currentLoan - repayAmount;
+
+        if (repayAmount > 0) {
+          const newRecord: LoanRecord = {
+            id: `loan-repay-${Date.now()}`,
+            userId: u.id,
+            userName: u.name,
+            userPhone: u.phone,
+            amount: repayAmount,
+            type: 'REPAID',
+            note: `ব্যালেন্স এড (৳${request.amount}) হতে স্বয়ংক্রিয় লোন কর্তন`,
+            createdAt: new Date().toISOString(),
+            remainingDue: newLoanDue
+          };
+          setLoanRecords(prev => [newRecord, ...prev]);
+        }
+
+        return {
+          ...u,
+          balance: u.balance + addToBalance,
+          loanDue: newLoanDue
+        };
       }
       return u;
     }));
@@ -462,6 +516,43 @@ export default function App() {
       loadAllData();
     } else {
       console.warn('Local update only (Supabase offline)');
+    }
+  };
+
+  // Callback: Admin grants loan to user
+  const handleGrantLoan = async (userId: string, amount: number, note?: string) => {
+    const targetUser = users.find(u => u.id === userId);
+    if (!targetUser) return;
+
+    const currentLoan = targetUser.loanDue || 0;
+    const newLoanDue = currentLoan + amount;
+
+    // Local optimistic update
+    setUsers(prev => prev.map(u => u.id === userId ? {
+      ...u,
+      balance: u.balance + amount,
+      loanDue: newLoanDue
+    } : u));
+
+    const newRecord: LoanRecord = {
+      id: `loan-given-${Date.now()}`,
+      userId: targetUser.id,
+      userName: targetUser.name,
+      userPhone: targetUser.phone,
+      amount,
+      type: 'GIVEN',
+      note: note || 'এডমিন কর্তৃক লোন প্রদান',
+      createdAt: new Date().toISOString(),
+      remainingDue: newLoanDue
+    };
+
+    setLoanRecords(prev => [newRecord, ...prev]);
+
+    try {
+      await grantLoanToUser(userId, amount, note);
+      await loadAllData();
+    } catch (err) {
+      console.warn('Error granting loan to user:', err);
     }
   };
 
@@ -693,6 +784,7 @@ export default function App() {
               offers={offers}
               balanceRequests={balanceRequests}
               orders={orders}
+              loanRecords={loanRecords}
               config={config}
               onSubmitBalanceRequest={handleSubmitBalanceRequest}
               onSubmitOrder={handleSubmitOrder}
@@ -713,7 +805,9 @@ export default function App() {
             offers={offers}
             balanceRequests={balanceRequests}
             orders={orders}
+            loanRecords={loanRecords}
             config={config}
+            onGrantLoan={handleGrantLoan}
             onApproveBalance={handleApproveBalance}
             onRejectBalance={handleRejectBalance}
             onAddOffer={handleAddOffer}

@@ -35,13 +35,14 @@ import {
   MoreVertical,
   X
 } from 'lucide-react';
-import { User, Offer, BalanceRequest, OfferOrder, AppConfig, OperatorName } from '../types';
+import { User, Offer, BalanceRequest, OfferOrder, AppConfig, OperatorName, LoanRecord } from '../types';
 
 interface UserAppProps {
   user: User;
   offers: Offer[];
   balanceRequests: BalanceRequest[];
   orders: OfferOrder[];
+  loanRecords?: LoanRecord[];
   config: AppConfig;
   onSubmitBalanceRequest: (request: Omit<BalanceRequest, 'id' | 'userId' | 'userName' | 'status' | 'createdAt'>) => void;
   onSubmitOrder: (order: Omit<OfferOrder, 'id' | 'userId' | 'userName' | 'status' | 'createdAt'>) => void;
@@ -123,6 +124,7 @@ export default function UserApp({
   offers,
   balanceRequests,
   orders,
+  loanRecords = [],
   config,
   onSubmitBalanceRequest,
   onSubmitOrder,
@@ -801,6 +803,15 @@ export default function UserApp({
     })
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
+  const userLoans = [...loanRecords]
+    .filter(l => {
+      if (!user || !user.id) return false;
+      if (l.userId === user.id) return true;
+      if (cleanUserPhone && l.userPhone && l.userPhone.replace(/[^0-9]/g, '') === cleanUserPhone) return true;
+      return false;
+    })
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
   return (
     <div className="bg-slate-950 h-[100dvh] max-h-[100dvh] overflow-hidden flex flex-col items-center justify-center select-none w-full md:p-6">
       
@@ -1063,6 +1074,15 @@ export default function UserApp({
                           </span>
                         )}
                       </button>
+
+                      {(user.loanDue || 0) > 0 && (
+                        <div className="mt-1.5 flex items-center justify-end">
+                          <span className="text-[9px] bg-amber-100 text-amber-900 border border-amber-300 font-black px-2 py-0.5 rounded-full flex items-center gap-1 shadow-xs">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping" />
+                            বকেয়া লোন: ৳{user.loanDue}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -1793,6 +1813,48 @@ export default function UserApp({
                         </div>
                       );
                     })}
+                  </div>
+                )}
+              </div>
+
+              {/* Loan & Auto-Repayment History Log */}
+              <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 space-y-3">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-1">
+                    <Award className="w-4 h-4 text-amber-500" />
+                    Loan & Auto-Repayment Log (লোন হিস্টোরি)
+                  </h3>
+                  <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200">
+                    বকেয়া: ৳{user.loanDue || 0}
+                  </span>
+                </div>
+
+                {userLoans.length === 0 ? (
+                  <p className="text-center text-slate-400 text-xs py-4 font-medium">কোনো লোন বা স্বয়ংক্রিয় কর্তনের তথ্য নেই।</p>
+                ) : (
+                  <div className="space-y-3 max-h-[250px] overflow-y-auto pr-1">
+                    {userLoans.map(loan => (
+                      <div key={loan.id} className="p-3 bg-slate-50 rounded-xl border border-slate-100 hover:bg-slate-100 transition space-y-1.5 animate-fade-in">
+                        <div className="flex justify-between items-center">
+                          <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase text-white ${
+                            loan.type === 'GIVEN' ? 'bg-amber-600' : 'bg-blue-600'
+                          }`}>
+                            {loan.type === 'GIVEN' ? 'লোন গ্রহণ' : 'স্বয়ংক্রিয় লোন পরিশোধ'}
+                          </span>
+
+                          <span className={`text-xs font-black ${loan.type === 'GIVEN' ? 'text-amber-600' : 'text-blue-600'}`}>
+                            {loan.type === 'GIVEN' ? `+ ${loan.amount} Tk` : `- ${loan.amount} Tk`}
+                          </span>
+                        </div>
+
+                        <p className="text-[11px] font-bold text-slate-700">{loan.note}</p>
+
+                        <div className="text-[9px] text-slate-400 flex justify-between items-center font-medium pt-1 border-t border-slate-200/50">
+                          <span>পরিশোধের পর বকেয়া: <strong className="text-slate-800 font-mono">৳{loan.remainingDue}</strong></span>
+                          <span>{new Date(loan.createdAt).toLocaleString('en-US', { hour12: true })}</span>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>

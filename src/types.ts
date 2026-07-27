@@ -5,6 +5,7 @@ export interface User {
   name: string;
   phone: string;
   balance: number;
+  loanDue?: number;
   role: 'user' | 'admin';
   level: 'Distributor' | 'Dealer' | 'Retailer';
   verified: boolean;
@@ -15,6 +16,18 @@ export interface User {
   twoStepEnabled?: boolean;
   apiKey?: string;
   language?: 'English' | 'Bangla';
+}
+
+export interface LoanRecord {
+  id: string;
+  userId: string;
+  userName: string;
+  userPhone?: string;
+  amount: number;
+  type: 'GIVEN' | 'REPAID';
+  note?: string;
+  createdAt: string;
+  remainingDue: number;
 }
 
 export interface Offer {
