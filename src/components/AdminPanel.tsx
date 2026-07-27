@@ -27,7 +27,8 @@ import {
   Calendar,
   Download,
   CheckSquare,
-  AlertTriangle
+  AlertTriangle,
+  X
 } from 'lucide-react';
 import { User, Offer, BalanceRequest, OfferOrder, AppConfig, OperatorName, LoanRecord } from '../types';
 import { OperatorLogo } from './UserApp';
