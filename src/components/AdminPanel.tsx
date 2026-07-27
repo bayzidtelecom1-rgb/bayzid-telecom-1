@@ -84,6 +84,7 @@ export default function AdminPanel({
 }: AdminPanelProps) {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'approvals' | 'offers' | 'orders' | 'loans' | 'settings'>('dashboard');
   const [grantLoanUserId, setGrantLoanUserId] = useState<string | null>(null);
+  const [grantLoanUserSearch, setGrantLoanUserSearch] = useState<string>('');
   const [grantLoanAmount, setGrantLoanAmount] = useState<string>('');
   const [grantLoanNote, setGrantLoanNote] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -2264,26 +2265,91 @@ export default function AdminPanel({
               </button>
             </div>
 
-            {/* Firebase User Selector Dropdown Box */}
-            <div className="space-y-1.5">
+            {/* Firebase User Search & Selector Dropdown Box */}
+            <div className="space-y-2">
               <label className="block text-[11px] font-bold text-amber-400 uppercase tracking-wider flex items-center justify-between">
-                <span>মোবাইল নম্বর / ইউজার সিলেক্ট করুন (Firebase User List)</span>
-                <span className="text-[9px] text-slate-400 font-normal">মোট ইউজার: {users.filter(u => u.role !== 'admin').length}</span>
+                <span>📱 মোবাইল নম্বর বা নাম সার্চ করুন</span>
+                <span className="text-[9px] text-slate-400 font-normal">মোট: {users.filter(u => u.role !== 'admin').length} ইউজার</span>
               </label>
 
-              <select
-                value={grantLoanUserId}
-                onChange={(e) => setGrantLoanUserId(e.target.value)}
-                className="w-full bg-slate-900 border-2 border-amber-500/50 rounded-xl p-3 text-xs font-bold text-white focus:outline-none focus:border-amber-400 font-mono cursor-pointer shadow-inner"
-              >
-                {users
-                  .filter(u => u.role !== 'admin')
-                  .map(u => (
-                    <option key={u.id} value={u.id} className="bg-slate-900 text-white font-mono py-1">
-                      📱 {u.phone || 'নম্বর নেই'} — 👤 {u.name} (ব্যালেন্স: ৳{u.balance} | বকেয়া: ৳{u.loanDue || 0})
-                    </option>
-                  ))}
-              </select>
+              {/* Search Box */}
+              <div className="relative">
+                <Search className="w-4 h-4 text-amber-400 absolute left-3 top-3 pointer-events-none" />
+                <input
+                  type="text"
+                  placeholder="মোবাইল নম্বর বা নাম লিখুন (যেমন: 01305504550 বা Masud)..."
+                  value={grantLoanUserSearch}
+                  onChange={(e) => setGrantLoanUserSearch(e.target.value)}
+                  className="w-full bg-slate-900 border-2 border-amber-500/60 rounded-xl pl-9 pr-8 py-2.5 text-xs font-bold text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 font-mono shadow-inner"
+                />
+                {grantLoanUserSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setGrantLoanUserSearch('')}
+                    className="absolute right-2.5 top-2.5 text-slate-400 hover:text-white cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+
+              {/* Filtered User List Cards */}
+              <div className="max-h-44 overflow-y-auto space-y-1.5 pr-1 border border-slate-700/60 bg-slate-900/80 p-2 rounded-xl">
+                {(() => {
+                  const query = grantLoanUserSearch.trim().toLowerCase();
+                  const filtered = users
+                    .filter(u => u.role !== 'admin')
+                    .filter(u => {
+                      if (!query) return true;
+                      const cleanP = (u.phone || '').replace(/[^0-9]/g, '');
+                      const cleanQ = query.replace(/[^0-9]/g, '');
+                      return (
+                        (u.phone && u.phone.toLowerCase().includes(query)) ||
+                        (cleanQ && cleanP.includes(cleanQ)) ||
+                        (u.name && u.name.toLowerCase().includes(query))
+                      );
+                    });
+
+                  if (filtered.length === 0) {
+                    return (
+                      <p className="text-center text-slate-400 text-xs py-3 font-medium">
+                        "<strong>{grantLoanUserSearch}</strong>" সার্চ রেজাল্টে কোনো ইউজার পাওয়া যায়নি।
+                      </p>
+                    );
+                  }
+
+                  return filtered.map(u => {
+                    const isSelected = u.id === grantLoanUserId;
+                    return (
+                      <div
+                        key={u.id}
+                        onClick={() => setGrantLoanUserId(u.id)}
+                        className={`p-2.5 rounded-lg border text-xs cursor-pointer transition flex justify-between items-center ${
+                          isSelected
+                            ? 'bg-amber-500/25 border-amber-400 text-white shadow-md ring-1 ring-amber-400'
+                            : 'bg-slate-800/80 border-slate-700/80 text-slate-300 hover:bg-slate-800 hover:border-slate-600'
+                        }`}
+                      >
+                        <div className="space-y-0.5">
+                          <div className="flex items-center gap-1.5 font-bold">
+                            <span className="font-mono text-amber-400 text-sm">📱 {u.phone || 'নম্বর নেই'}</span>
+                            <span className="text-slate-200">• 👤 {u.name}</span>
+                          </div>
+                          <div className="text-[10px] text-slate-400 font-mono">
+                            ব্যালেন্স: <span className="text-emerald-400 font-bold">৳{u.balance}</span> | বকেয়া লোন: <span className="text-amber-400 font-bold">৳{u.loanDue || 0}</span>
+                          </div>
+                        </div>
+
+                        {isSelected && (
+                          <span className="px-2 py-0.5 bg-amber-500 text-slate-950 font-black text-[10px] rounded-full shadow-xs">
+                            Selected ✓
+                          </span>
+                        )}
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
             </div>
 
             {(() => {
