@@ -2392,7 +2392,7 @@ export default function AdminPanel({
                     hasLoanHistory: givenLoans > 0 || currentDue > 0 || repaidLoans > 0
                   };
                 })
-                .filter(item => item.hasLoanHistory)
+                .filter(item => item.currentDue > 0)
                 .filter(item => {
                   if (!searchQuery) return true;
                   const q = searchQuery.toLowerCase();
@@ -2414,10 +2414,10 @@ export default function AdminPanel({
                     <div>
                       <h3 className="text-sm font-extrabold uppercase text-amber-400 tracking-wider flex items-center gap-2">
                         <DollarSign className="w-4 h-4 text-amber-400" />
-                        লোন গ্রহীতাদের তালিকা ও খরচের সামারি (Loan Users & Expense Summary)
+                        চলতি বকেয়া লোন গ্রহীতাদের তালিকা (Active Loan Users)
                       </h3>
                       <p className="text-[11px] text-slate-400 mt-0.5">
-                        কোন ইউজার কত লোন নিয়েছেন, অফার ক্রয়ে কত খরচ করেছেন, মেইন ব্যালেন্স ও বর্তমান বকেয়া লোন সামারি।
+                        যাদের কাছে বর্তমানে লোন পাওনা (বকেয়া) আছে শুধু তাদের তালিকা। লোন সম্পূর্ণ পরিশোধকারীদের তালিকা থেকে বাদ দেওয়া হয়েছে।
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
@@ -2430,7 +2430,7 @@ export default function AdminPanel({
                         সামারি Excel
                       </button>
                       <span className="px-3 py-1 bg-amber-500/20 text-amber-400 border border-amber-500/40 text-xs font-bold rounded-full font-mono">
-                        মোট লোন ইউজার: {loanUsersData.length} জন
+                        বকেয়া লোন ইউজার: {loanUsersData.length} জন
                       </span>
                     </div>
                   </div>
