@@ -243,6 +243,7 @@ export async function fetchUsersProfiles(): Promise<User[] | null> {
         phone: data.phone || '',
         balance: Number(data.balance) || 0,
         loanDue: Number(data.loanDue) || 0,
+        loanDueDate: data.loanDueDate || '',
         role: data.role || 'user',
         level: data.level || 'Retailer',
         verified: data.verified !== false,
@@ -288,6 +289,7 @@ export async function updateUserProfile(userId: string, fields: Partial<User>): 
     const payload: any = {};
     if (fields.balance !== undefined) payload.balance = fields.balance;
     if (fields.loanDue !== undefined) payload.loanDue = fields.loanDue;
+    if (fields.loanDueDate !== undefined) payload.loanDueDate = fields.loanDueDate;
     if (fields.level) payload.level = fields.level;
     if (fields.password) payload.password = fields.password;
     if (fields.pin) payload.pin = fields.pin;
@@ -439,7 +441,11 @@ export async function approveDepositRequest(depositId: string, amount: number): 
 
       const newBalance = currentBalance + addToBalance;
 
-      transaction.update(userRef, { balance: newBalance, loanDue: newLoanDue });
+      const userUpdateObj: any = { balance: newBalance, loanDue: newLoanDue };
+      if (newLoanDue === 0) {
+        userUpdateObj.loanDueDate = '';
+      }
+      transaction.update(userRef, userUpdateObj);
       transaction.update(depositRef, { status: 'Approved' });
     });
 
@@ -457,7 +463,7 @@ export async function approveDepositRequest(depositId: string, amount: number): 
 }
 
 // 4.1 Loan Management API
-export async function grantLoanToUser(userId: string, amount: number, note?: string): Promise<boolean> {
+export async function grantLoanToUser(userId: string, amount: number, note?: string, dueDate?: string): Promise<boolean> {
   if (!db) return false;
   try {
     await runTransaction(db, async (transaction) => {
@@ -474,10 +480,12 @@ export async function grantLoanToUser(userId: string, amount: number, note?: str
 
       const newBalance = currentBalance + amount;
       const newLoanDue = currentLoan + amount;
+      const finalDueDate = dueDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
       transaction.update(userRef, {
         balance: newBalance,
-        loanDue: newLoanDue
+        loanDue: newLoanDue,
+        loanDueDate: finalDueDate
       });
 
       const loanRecordRef = doc(collection(db, 'loan_records'));
@@ -488,6 +496,7 @@ export async function grantLoanToUser(userId: string, amount: number, note?: str
         amount,
         type: 'GIVEN',
         note: note || 'এডমিন কর্তৃক লোন প্রদান',
+        dueDate: finalDueDate,
         createdAt: new Date().toISOString(),
         remainingDue: newLoanDue
       });
@@ -516,6 +525,7 @@ export async function fetchLoanRecords(): Promise<LoanRecord[]> {
         amount: Number(data.amount) || 0,
         type: data.type as 'GIVEN' | 'REPAID',
         note: data.note || '',
+        dueDate: data.dueDate || '',
         createdAt: data.createdAt,
         remainingDue: Number(data.remainingDue) || 0
       });
@@ -524,6 +534,19 @@ export async function fetchLoanRecords(): Promise<LoanRecord[]> {
   } catch (err) {
     console.warn('Error fetching loan records:', err);
     return [];
+  }
+}
+
+export async function clearAllLoanRecords(): Promise<boolean> {
+  if (!db) return false;
+  try {
+    const querySnapshot = await getDocs(collection(db, 'loan_records'));
+    const deletePromises = querySnapshot.docs.map((docSnap) => deleteDoc(docSnap.ref));
+    await Promise.all(deletePromises);
+    return true;
+  } catch (err) {
+    console.warn('Error clearing loan records:', err);
+    return false;
   }
 }
 

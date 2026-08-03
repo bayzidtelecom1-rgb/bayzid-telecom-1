@@ -6,6 +6,7 @@ export interface User {
   phone: string;
   balance: number;
   loanDue?: number;
+  loanDueDate?: string;
   role: 'user' | 'admin';
   level: 'Distributor' | 'Dealer' | 'Retailer';
   verified: boolean;
@@ -26,6 +27,7 @@ export interface LoanRecord {
   amount: number;
   type: 'GIVEN' | 'REPAID';
   note?: string;
+  dueDate?: string;
   createdAt: string;
   remainingDue: number;
 }

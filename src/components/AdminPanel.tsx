@@ -32,6 +32,7 @@ import {
 } from 'lucide-react';
 import { User, Offer, BalanceRequest, OfferOrder, AppConfig, OperatorName, LoanRecord } from '../types';
 import { OperatorLogo } from './UserApp';
+import { clearAllLoanRecords } from '../lib/firebaseService';
 
 interface AdminPanelProps {
   users: User[];
@@ -40,7 +41,7 @@ interface AdminPanelProps {
   orders: OfferOrder[];
   loanRecords?: LoanRecord[];
   config: AppConfig;
-  onGrantLoan?: (userId: string, amount: number, note?: string) => void;
+  onGrantLoan?: (userId: string, amount: number, note?: string, dueDate?: string) => void;
   onApproveBalance: (id: string) => void;
   onRejectBalance: (id: string) => void;
   onAddOffer: (offer: Omit<Offer, 'id' | 'isActive'>) => void;
@@ -55,6 +56,7 @@ interface AdminPanelProps {
   onDeleteAllOrders?: () => void;
   onDeleteAllDeposits?: () => void;
   onDeleteAllUsers?: () => void;
+  onDeleteAllLoans?: () => void;
   onBulkToggleOfferStatus?: (isActive: boolean) => void;
 }
 
@@ -80,6 +82,7 @@ export default function AdminPanel({
   onDeleteAllOrders,
   onDeleteAllDeposits,
   onDeleteAllUsers,
+  onDeleteAllLoans,
   onBulkToggleOfferStatus,
 }: AdminPanelProps) {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'approvals' | 'offers' | 'orders' | 'loans' | 'settings'>('dashboard');
@@ -87,10 +90,17 @@ export default function AdminPanel({
   const [grantLoanUserSearch, setGrantLoanUserSearch] = useState<string>('');
   const [grantLoanAmount, setGrantLoanAmount] = useState<string>('');
   const [grantLoanNote, setGrantLoanNote] = useState<string>('');
+  const [grantLoanDueDate, setGrantLoanDueDate] = useState<string>(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 7);
+    return d.toISOString().split('T')[0];
+  });
   const [searchQuery, setSearchQuery] = useState('');
   const [orderFilterTab, setOrderFilterTab] = useState<'Pending' | 'Successful' | 'Canceled'>('Pending');
   const [copiedOrderId, setCopiedOrderId] = useState<string | null>(null);
   const [cutOrders, setCutOrders] = useState<Record<string, boolean>>({});
+  const [showDeleteLoansModal, setShowDeleteLoansModal] = useState(false);
+  const [isDeletingLoans, setIsDeletingLoans] = useState(false);
 
   const [selectedReportDate, setSelectedReportDate] = useState<string>(() => {
     return new Date().toISOString().split('T')[0];
@@ -154,6 +164,104 @@ export default function AdminPanel({
     document.body.removeChild(link);
   };
 
+  const exportLoanRecordsToCSV = () => {
+    if (loanRecords.length === 0) {
+      alert("কোন লোন বা কর্তন রেকর্ড ডাটা নেই!");
+      return;
+    }
+    const headers = ["ID", "Date Time", "User Name", "Phone Number", "Type", "Amount (Tk)", "Remaining Due (Tk)", "Note"];
+    const rows = loanRecords.map(l => [
+      l.id,
+      l.createdAt ? new Date(l.createdAt).toLocaleString('en-US') : "",
+      `"${(l.userName || "").replace(/"/g, '""')}"`,
+      `"${l.userPhone || ""}"`,
+      l.type === 'GIVEN' ? 'LOAN GIVEN' : 'REPAYMENT',
+      l.amount,
+      l.remainingDue,
+      `"${(l.note || "").replace(/"/g, '""')}"`
+    ]);
+    const csvContent = [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
+    
+    const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `all_loan_records_backup_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const exportLoanSummaryToCSV = (
+    loanUsersData: any[],
+    grandTotalGiven: number,
+    grandTotalSpent: number,
+    grandTotalBalance: number,
+    grandTotalRepaid: number,
+    grandTotalDue: number
+  ) => {
+    if (loanUsersData.length === 0) {
+      alert("কোন লোন গ্রহীতার সামারি ডাটা নেই!");
+      return;
+    }
+    const todayStr = new Date().toISOString().split('T')[0];
+    const headers = ["SL", "User Name", "Phone Number", "Total Loan Received (Tk)", "Offer Expense (Tk)", "Current Main Balance (Tk)", "Repaid Loan (Tk)", "Current Due (Tk)", "Due Date", "Status"];
+    const rows = loanUsersData.map((item, idx) => {
+      const isOverdue = item.currentDue > 0 && item.user.loanDueDate && item.user.loanDueDate < todayStr;
+      const statusText = item.currentDue === 0 ? 'REPAID' : isOverdue ? 'OVERDUE (Time Over)' : 'ACTIVE DUE';
+      return [
+        idx + 1,
+        `"${(item.user.name || "").replace(/"/g, '""')}"`,
+        `"${item.user.phone || ""}"`,
+        item.givenLoans,
+        item.totalSpent,
+        item.user.balance || 0,
+        item.repaidLoans,
+        item.currentDue,
+        `"${item.user.loanDueDate || ""}"`,
+        `"${statusText}"`
+      ];
+    });
+    rows.push([
+      "GRAND TOTAL",
+      "ALL USERS",
+      "-",
+      grandTotalGiven,
+      grandTotalSpent,
+      grandTotalBalance,
+      grandTotalRepaid,
+      grandTotalDue,
+      "-",
+      "-"
+    ]);
+    const csvContent = [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
+    
+    const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `loan_users_summary_backup_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleConfirmDeleteAllLoans = async () => {
+    setIsDeletingLoans(true);
+    try {
+      await clearAllLoanRecords();
+      if (onDeleteAllLoans) {
+        onDeleteAllLoans();
+      }
+      setShowDeleteLoansModal(false);
+      alert("সমস্ত লোন হিস্টোরি সফলভাবে মুছে ফেলা হয়েছে।");
+    } catch (err) {
+      alert("ডিলিট করার সময় সমস্যা হয়েছে। পুনরায় চেষ্টা করুন।");
+    } finally {
+      setIsDeletingLoans(false);
+    }
+  };
+
   const handleCopyOrderDetails = (id: string, text: string) => {
     navigator.clipboard.writeText(text);
     setCopiedOrderId(id);
@@ -214,6 +322,7 @@ export default function AdminPanel({
 
   // User editing state
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
   const [editBalance, setEditBalance] = useState('');
   const [editLevel, setEditLevel] = useState<'Distributor' | 'Dealer' | 'Retailer'>('Dealer');
   const [editPassword, setEditPassword] = useState('');
@@ -221,6 +330,7 @@ export default function AdminPanel({
 
   const handleStartEditUser = (user: User) => {
     setEditingUserId(user.id);
+    setEditName(user.name);
     setEditBalance(user.balance.toString());
     setEditLevel(user.level);
     setEditPassword(user.password || '123456');
@@ -235,6 +345,7 @@ export default function AdminPanel({
       const diff = newBal - oldBal;
 
       onUpdateUser(userId, {
+        name: editName.trim() || (targetUser ? targetUser.name : 'User'),
         balance: newBal,
         level: editLevel,
         password: editPassword,
@@ -850,6 +961,15 @@ export default function AdminPanel({
                                 <span className="text-[10px] text-slate-400 font-mono">{user.phone}</span>
                               </div>
                               <div className="grid grid-cols-2 gap-2">
+                                <div className="col-span-2">
+                                  <label className="block text-[10px] text-slate-400 mb-0.5 uppercase font-bold">User Name (নাম)</label>
+                                  <input
+                                    type="text"
+                                    value={editName}
+                                    onChange={(e) => setEditName(e.target.value)}
+                                    className="w-full bg-slate-900 border border-slate-700 rounded p-1.5 text-white font-bold focus:outline-none focus:border-blue-500"
+                                  />
+                                </div>
                                 <div>
                                   <label className="block text-[10px] text-slate-400 mb-0.5 uppercase font-bold">Balance (Tk)</label>
                                   <input
@@ -1035,7 +1155,16 @@ export default function AdminPanel({
                                   <div className="flex justify-between items-center border-b border-slate-700/60 pb-1.5 mb-2">
                                     <span className="font-bold text-yellow-400">Editing Account: {user.name} ({user.phone})</span>
                                   </div>
-                                  <div className="grid grid-cols-4 gap-4">
+                                  <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
+                                    <div>
+                                      <label className="block text-[10px] text-slate-400 mb-1 uppercase font-bold">User Name (নাম)</label>
+                                      <input
+                                        type="text"
+                                        value={editName}
+                                        onChange={(e) => setEditName(e.target.value)}
+                                        className="w-full bg-slate-900 border border-slate-750 rounded-lg p-2 text-white font-bold focus:outline-none focus:border-blue-500"
+                                      />
+                                    </div>
                                     <div>
                                       <label className="block text-[10px] text-slate-400 mb-1 uppercase font-bold">Balance (Tk)</label>
                                       <input
@@ -1142,6 +1271,15 @@ export default function AdminPanel({
                                 <span className="font-bold text-yellow-400">Editing: {user.name}</span>
                               </div>
                               <div className="space-y-2.5">
+                                <div>
+                                  <label className="block text-[10px] text-slate-400 mb-0.5 uppercase font-bold">User Name (নাম)</label>
+                                  <input
+                                    type="text"
+                                    value={editName}
+                                    onChange={(e) => setEditName(e.target.value)}
+                                    className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white font-bold focus:outline-none focus:border-blue-500"
+                                  />
+                                </div>
                                 <div>
                                   <label className="block text-[10px] text-slate-400 mb-0.5 uppercase font-bold">Balance (Tk)</label>
                                   <input
@@ -2162,21 +2300,297 @@ export default function AdminPanel({
               </div>
             </div>
 
+            {/* OVERDUE LOAN RED ALERT BANNER */}
+            {(() => {
+              const todayStr = new Date().toISOString().split('T')[0];
+              const overdueList = users.filter(u => u.role !== 'admin' && (u.loanDue || 0) > 0 && u.loanDueDate && u.loanDueDate < todayStr);
+              if (overdueList.length === 0) return null;
+
+              return (
+                <div className="bg-rose-950/90 border-2 border-rose-600 rounded-xl p-4 space-y-3 shadow-2xl text-white">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-extrabold text-rose-300 uppercase flex items-center gap-2">
+                      <AlertTriangle className="w-5 h-5 text-rose-400" />
+                      🚨 সময় পার (Time Over)! {overdueList.length} জন ইউজারের লোন পরিশোধের মেয়াদ পার হয়ে গেছে
+                    </h3>
+                    <span className="px-3 py-1 bg-rose-600 text-white font-mono text-xs font-black rounded-full animate-bounce">
+                      রেড অ্যালার্ট
+                    </span>
+                  </div>
+                  <p className="text-xs text-rose-200">
+                    নিম্নোক্ত ইউজারগণ লোন নেওয়ার পর নির্ধারিত সময়ের মধ্যে পরিশোধ করেননি। ইউজার অ্যাপে তাদের বিশেষ রেড অ্যালার্ট জানানো হয়েছে।
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 pt-1">
+                    {overdueList.map(ou => (
+                      <div key={ou.id} className="bg-slate-900 border border-rose-500/60 p-3 rounded-lg flex items-center justify-between text-xs">
+                        <div>
+                          <strong className="text-white block font-bold">{ou.name}</strong>
+                          <span className="text-amber-400 font-mono text-[11px]">📱 {ou.phone}</span>
+                          <div className="text-[10px] text-slate-300 font-mono mt-0.5">
+                            বকেয়া: <strong className="text-rose-400 font-black">৳{ou.loanDue}</strong> | মেয়াদ: <span className="text-rose-300 font-bold">{ou.loanDueDate}</span>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => alert(`📱 ${ou.name} (${ou.phone})-কে লোন পরিশোধ করার রিমাইন্ডার দেওয়া হলো!`)}
+                          className="px-2.5 py-1.5 bg-rose-600 hover:bg-rose-500 text-white text-[10px] font-bold rounded-lg cursor-pointer transition shadow-xs shrink-0"
+                        >
+                          🔔 রিমাইন্ডার
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* LOAN RECIPIENTS SUMMARY TABLE WITH GRAND TOTAL */}
+            {(() => {
+              const todayStr = new Date().toISOString().split('T')[0];
+              const loanUsersData = users
+                .filter(u => u.role !== 'admin')
+                .map(u => {
+                  const uPhoneClean = (u.phone || '').replace(/[^0-9]/g, '');
+                  
+                  // Calculate total given loan to this user from loanRecords
+                  const userGivenRecords = loanRecords.filter(l => 
+                    l.type === 'GIVEN' && 
+                    ((l.userPhone && l.userPhone.replace(/[^0-9]/g, '') === uPhoneClean) || (l.userName && l.userName === u.name))
+                  );
+                  let givenLoans = userGivenRecords.reduce((sum, l) => sum + l.amount, 0);
+
+                  // Calculate total repaid loan for this user
+                  const userRepaidRecords = loanRecords.filter(l => 
+                    l.type === 'REPAID' && 
+                    ((l.userPhone && l.userPhone.replace(/[^0-9]/g, '') === uPhoneClean) || (l.userName && l.userName === u.name))
+                  );
+                  const repaidLoans = userRepaidRecords.reduce((sum, l) => sum + l.amount, 0);
+
+                  const currentDue = Number(u.loanDue) || 0;
+
+                  // Fallback: if user currently has loanDue > 0 or repaid, but givenLoans records is 0
+                  if (givenLoans === 0 && (currentDue > 0 || repaidLoans > 0)) {
+                    givenLoans = currentDue + repaidLoans;
+                  }
+
+                  // Calculate total spent on offer orders by this user
+                  const userOrders = orders.filter(o => {
+                    if (o.userId === u.id) return true;
+                    const cleanOrderUserId = o.userId ? o.userId.replace('usr_', '') : '';
+                    return uPhoneClean && cleanOrderUserId === uPhoneClean;
+                  });
+                  const totalSpent = userOrders
+                    .filter(o => o.status === 'Successful' || o.status === 'Pending')
+                    .reduce((sum, o) => sum + Number(o.offerPrice || 0), 0);
+
+                  return {
+                    user: u,
+                    givenLoans,
+                    repaidLoans,
+                    currentDue,
+                    totalSpent,
+                    hasLoanHistory: givenLoans > 0 || currentDue > 0 || repaidLoans > 0
+                  };
+                })
+                .filter(item => item.hasLoanHistory)
+                .filter(item => {
+                  if (!searchQuery) return true;
+                  const q = searchQuery.toLowerCase();
+                  return (
+                    item.user.name.toLowerCase().includes(q) ||
+                    (item.user.phone && item.user.phone.includes(q))
+                  );
+                });
+
+              const grandTotalGiven = loanUsersData.reduce((sum, item) => sum + item.givenLoans, 0);
+              const grandTotalSpent = loanUsersData.reduce((sum, item) => sum + item.totalSpent, 0);
+              const grandTotalBalance = loanUsersData.reduce((sum, item) => sum + (item.user.balance || 0), 0);
+              const grandTotalRepaid = loanUsersData.reduce((sum, item) => sum + item.repaidLoans, 0);
+              const grandTotalDue = loanUsersData.reduce((sum, item) => sum + item.currentDue, 0);
+
+              return (
+                <div className="bg-slate-800/80 border-2 border-amber-500/40 rounded-xl p-5 space-y-4 shadow-xl">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-700 pb-3">
+                    <div>
+                      <h3 className="text-sm font-extrabold uppercase text-amber-400 tracking-wider flex items-center gap-2">
+                        <DollarSign className="w-4 h-4 text-amber-400" />
+                        লোন গ্রহীতাদের তালিকা ও খরচের সামারি (Loan Users & Expense Summary)
+                      </h3>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        কোন ইউজার কত লোন নিয়েছেন, অফার ক্রয়ে কত খরচ করেছেন, মেইন ব্যালেন্স ও বর্তমান বকেয়া লোন সামারি।
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => exportLoanSummaryToCSV(loanUsersData, grandTotalGiven, grandTotalSpent, grandTotalBalance, grandTotalRepaid, grandTotalDue)}
+                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg transition flex items-center gap-1.5 shadow-sm cursor-pointer"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        সামারি Excel
+                      </button>
+                      <span className="px-3 py-1 bg-amber-500/20 text-amber-400 border border-amber-500/40 text-xs font-bold rounded-full font-mono">
+                        মোট লোন ইউজার: {loanUsersData.length} জন
+                      </span>
+                    </div>
+                  </div>
+
+                  {loanUsersData.length === 0 ? (
+                    <div className="text-center py-8 text-slate-400 text-xs">
+                      কোনো লোন গ্রহীতা ইউজারের ডাটা পাওয়া যায়নি।
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs text-slate-200">
+                        <thead className="text-[10px] uppercase font-black text-amber-400 bg-slate-900/90 border-b border-slate-700 font-mono">
+                          <tr>
+                            <th className="p-3">#</th>
+                            <th className="p-3">ইউজার / নম্বর</th>
+                            <th className="p-3">প্রাপ্ত লোন (৳)</th>
+                            <th className="p-3">অফার খরচ (৳)</th>
+                            <th className="p-3">মেইন ব্যালেন্স (৳)</th>
+                            <th className="p-3">পরিশোধিত (৳)</th>
+                            <th className="p-3">বর্তমান বকেয়া (৳)</th>
+                            <th className="p-3">মেয়াদ (Due Date)</th>
+                            <th className="p-3">স্ট্যাটাস</th>
+                            <th className="p-3 text-right">অ্যাকশন</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-700/60 font-mono">
+                          {loanUsersData.map((item, idx) => {
+                            const isOverdue = item.currentDue > 0 && item.user.loanDueDate && item.user.loanDueDate < todayStr;
+
+                            return (
+                              <tr key={item.user.id} className="hover:bg-slate-700/40 transition">
+                                <td className="p-3 text-slate-400 font-bold">{idx + 1}</td>
+                                <td className="p-3 font-sans">
+                                  <strong className="text-white block text-xs">{item.user.name}</strong>
+                                  <span className="font-mono text-[11px] text-amber-400 font-bold">📱 {item.user.phone}</span>
+                                </td>
+                                <td className="p-3 font-extrabold text-amber-400 text-sm">
+                                  ৳{item.givenLoans}
+                                </td>
+                                <td className="p-3 font-bold text-sky-400">
+                                  ৳{item.totalSpent}
+                                </td>
+                                <td className="p-3 font-extrabold text-emerald-400 text-sm">
+                                  ৳{item.user.balance || 0}
+                                </td>
+                                <td className="p-3 font-bold text-emerald-400">
+                                  ৳{item.repaidLoans}
+                                </td>
+                                <td className="p-3 font-black text-rose-400 text-sm">
+                                  ৳{item.currentDue}
+                                </td>
+                                <td className="p-3 font-mono text-[11px] font-bold text-slate-300">
+                                  {item.user.loanDueDate || '-'}
+                                </td>
+                                <td className="p-3">
+                                  {item.currentDue === 0 ? (
+                                    <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 text-[10px] font-bold rounded-full">
+                                      🟢 পরিশোধিত
+                                    </span>
+                                  ) : isOverdue ? (
+                                    <span className="px-2 py-0.5 bg-rose-600 text-white font-mono text-[10px] font-extrabold rounded-full animate-bounce inline-block shadow-md">
+                                      🔴 সময় পার!
+                                    </span>
+                                  ) : (
+                                    <span className="px-2 py-0.5 bg-amber-500/20 text-amber-400 border border-amber-500/40 text-[10px] font-bold rounded-full font-mono">
+                                      🟡 চলতি বকেয়া
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="p-3 text-right font-sans space-x-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setGrantLoanUserId(item.user.id);
+                                      setGrantLoanAmount('');
+                                      setGrantLoanNote('আরও লোন প্রদান');
+                                    }}
+                                    className="px-2 py-1 bg-amber-600 hover:bg-amber-500 text-white text-[10px] font-bold rounded-lg transition shadow-xs cursor-pointer"
+                                  >
+                                    + লোন
+                                  </button>
+                                  {item.currentDue > 0 && (
+                                    <button
+                                      type="button"
+                                      onClick={() => alert(`📱 ${item.user.name} (${item.user.phone})-কে লোন পরিশোধের রিমাইন্ডার দেওয়া হয়েছে!`)}
+                                      className="px-2 py-1 bg-slate-700 hover:bg-slate-600 text-amber-300 text-[10px] font-bold rounded-lg transition cursor-pointer"
+                                      title="রিমাইন্ডার পাঠান"
+                                    >
+                                      🔔
+                                    </button>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                        {/* GRAND TOTAL FOOTER */}
+                        <tfoot className="bg-slate-900 border-t-2 border-amber-500/60 text-xs font-black font-mono">
+                          <tr className="text-amber-400">
+                            <td colSpan={2} className="p-3.5 font-sans font-black text-right text-amber-400 uppercase tracking-wider text-sm">
+                              Grand Total (সর্বমোট) ➔
+                            </td>
+                            <td className="p-3.5 text-amber-400 font-black text-sm">
+                              ৳{grandTotalGiven}
+                            </td>
+                            <td className="p-3.5 text-sky-400 font-black text-sm">
+                              ৳{grandTotalSpent}
+                            </td>
+                            <td className="p-3.5 text-emerald-400 font-black text-sm">
+                              ৳{grandTotalBalance}
+                            </td>
+                            <td className="p-3.5 text-emerald-400 font-black text-sm">
+                              ৳{grandTotalRepaid}
+                            </td>
+                            <td className="p-3.5 text-rose-400 font-black text-base">
+                              ৳{grandTotalDue}
+                            </td>
+                            <td colSpan={3} className="p-3.5"></td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
             {/* Loans Table */}
             <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-5 space-y-4">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                 <h3 className="text-sm font-bold uppercase text-slate-300 tracking-wider">
                   সর্বশেষ লোন ও কর্তন রেকর্ডস ({loanRecords.length})
                 </h3>
-                <div className="relative w-full sm:w-64">
-                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
-                  <input
-                    type="text"
-                    placeholder="ইউজার নাম, মোবাইল বা নোট দিয়ে খুঁজুন..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-8 pr-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
-                  />
+                <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                  <button
+                    type="button"
+                    onClick={exportLoanRecordsToCSV}
+                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg transition flex items-center gap-1.5 shadow-sm cursor-pointer"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    রেকর্ডস Excel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowDeleteLoansModal(true)}
+                    className="px-3 py-1.5 bg-rose-600/90 hover:bg-rose-600 text-white text-xs font-bold rounded-lg transition flex items-center gap-1.5 shadow-sm cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    সব হিস্টোরি ডিলিট
+                  </button>
+                  <div className="relative w-full sm:w-64">
+                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+                    <input
+                      type="text"
+                      placeholder="ইউজার নাম, মোবাইল বা নোট দিয়ে খুঁজুন..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-8 pr-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -2368,8 +2782,8 @@ export default function AdminPanel({
                       return;
                     }
                     if (onGrantLoan) {
-                      onGrantLoan(selectedUser.id, amt, grantLoanNote || 'এডমিন কর্তৃক লোন প্রদান');
-                      alert(`৳${amt} লোন সফলভাবে ${selectedUser.name} (${selectedUser.phone})-কে প্রদান করা হয়েছে!`);
+                      onGrantLoan(selectedUser.id, amt, grantLoanNote || 'এডমিন কর্তৃক লোন প্রদান', grantLoanDueDate);
+                      alert(`৳${amt} লোন সফলভাবে ${selectedUser.name} (${selectedUser.phone})-কে প্রদান করা হয়েছে! (মেয়াদ: ${grantLoanDueDate})`);
                     }
                     setGrantLoanUserId(null);
                   }}
@@ -2411,6 +2825,17 @@ export default function AdminPanel({
                   </div>
 
                   <div>
+                    <label className="block text-[10px] font-bold text-slate-300 uppercase mb-1">পরিশোধের শেষ তারিখ (Due Date) *</label>
+                    <input
+                      type="date"
+                      required
+                      value={grantLoanDueDate}
+                      onChange={(e) => setGrantLoanDueDate(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs font-bold text-emerald-400 focus:outline-none focus:border-amber-500 font-mono"
+                    />
+                  </div>
+
+                  <div>
                     <label className="block text-[10px] font-bold text-slate-300 uppercase mb-1">নোট / বিবরণ (ঐচ্ছিক)</label>
                     <input
                       type="text"
@@ -2440,6 +2865,71 @@ export default function AdminPanel({
                 </form>
               );
             })()}
+          </div>
+        </div>
+      )}
+
+      {/* DELETE ALL LOAN HISTORY WARNING MODAL */}
+      {showDeleteLoansModal && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 animate-fade-in">
+          <div className="bg-slate-800 border-2 border-rose-500/60 rounded-2xl p-6 w-full max-w-lg space-y-4 shadow-2xl text-slate-200">
+            <div className="flex justify-between items-center border-b border-slate-700/80 pb-3">
+              <h3 className="text-sm font-extrabold text-rose-400 uppercase tracking-wider flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-rose-500 animate-bounce" />
+                সতর্কতা: লোন হিস্টোরি ডিলিট করার নিয়ম
+              </h3>
+              <button
+                onClick={() => setShowDeleteLoansModal(false)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 text-xs space-y-2 text-amber-200">
+              <p className="font-bold text-amber-300 flex items-center gap-1.5 text-sm">
+                <span>⚠️</span> আগে Excel ব্যাকআপ করুন, তারপর ডিলিট করুন!
+              </p>
+              <p className="leading-relaxed text-slate-300">
+                সমস্ত লোন হিস্টোরি ডিলিট করলে ডাটাবেজ থেকে সমস্ত লোন লেনদেনের রেকর্ড স্থায়ীভাবে মুছে যাবে। ডাটা হারানোর ঝুঁকি এড়াতে ডিলিট করার পূর্বে নিচে দেওয়া বোতামে ক্লিক করে Excel ফাইল ডাউনলোড করে ব্যাকআপ রাখুন।
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-3 pt-2">
+              <p className="text-xs font-bold text-slate-200">
+                আপনি কি Excel ব্যাকআপ সম্পন্ন করেছেন এবং স্থায়ীভাবে সমস্ত লোন হিস্টোরি মুছে ফেলতে চান?
+              </p>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    exportLoanRecordsToCSV();
+                  }}
+                  className="py-2.5 px-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition shadow-sm cursor-pointer"
+                >
+                  <Download className="w-4 h-4" />
+                  Excel ব্যাকআপ
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowDeleteLoansModal(false)}
+                  className="py-2.5 px-3 bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold text-xs rounded-xl transition cursor-pointer"
+                >
+                  না, বাতিল করুন
+                </button>
+
+                <button
+                  type="button"
+                  disabled={isDeletingLoans}
+                  onClick={handleConfirmDeleteAllLoans}
+                  className="py-2.5 px-3 bg-rose-600 hover:bg-rose-500 text-white font-extrabold text-xs rounded-xl flex items-center justify-center gap-1.5 transition shadow-sm cursor-pointer disabled:opacity-50"
+                >
+                  {isDeletingLoans ? 'ডিলিট হচ্ছে...' : 'হ্যাঁ, ডিলিট করুন'}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

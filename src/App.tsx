@@ -520,18 +520,20 @@ export default function App() {
   };
 
   // Callback: Admin grants loan to user
-  const handleGrantLoan = async (userId: string, amount: number, note?: string) => {
+  const handleGrantLoan = async (userId: string, amount: number, note?: string, dueDate?: string) => {
     const targetUser = users.find(u => u.id === userId);
     if (!targetUser) return;
 
     const currentLoan = targetUser.loanDue || 0;
     const newLoanDue = currentLoan + amount;
+    const finalDueDate = dueDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
     // Local optimistic update
     setUsers(prev => prev.map(u => u.id === userId ? {
       ...u,
       balance: u.balance + amount,
-      loanDue: newLoanDue
+      loanDue: newLoanDue,
+      loanDueDate: finalDueDate
     } : u));
 
     const newRecord: LoanRecord = {
@@ -542,6 +544,7 @@ export default function App() {
       amount,
       type: 'GIVEN',
       note: note || 'এডমিন কর্তৃক লোন প্রদান',
+      dueDate: finalDueDate,
       createdAt: new Date().toISOString(),
       remainingDue: newLoanDue
     };
@@ -549,7 +552,7 @@ export default function App() {
     setLoanRecords(prev => [newRecord, ...prev]);
 
     try {
-      await grantLoanToUser(userId, amount, note);
+      await grantLoanToUser(userId, amount, note, finalDueDate);
       await loadAllData();
     } catch (err) {
       console.warn('Error granting loan to user:', err);

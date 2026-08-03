@@ -147,6 +147,7 @@ export default function UserApp({
   // Tap for balance state
   const [showBalance, setShowBalance] = useState(false);
   const [isTapping, setIsTapping] = useState(false);
+  const [showOverdueModal, setShowOverdueModal] = useState(true);
 
   // Sidebar & Login / Register states
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -1071,12 +1072,129 @@ export default function UserApp({
             {/* Dynamic Screen View Content */}
             <div className="flex-1 overflow-y-auto bg-slate-50 pb-20 touch-pan-y overscroll-contain" style={{ WebkitOverflowScrolling: 'touch' }}>
           
+          {/* RED ALERT OVERDUE LOAN POPUP MODAL */}
+          {(() => {
+            const todayStr = new Date().toISOString().split('T')[0];
+            const isLoanOverdue = (user.loanDue || 0) > 0 && user.loanDueDate && user.loanDueDate < todayStr;
+            if (!isLoanOverdue || !showOverdueModal) return null;
+
+            return (
+              <div className="fixed inset-0 bg-black/85 flex items-center justify-center p-4 z-50 animate-fade-in backdrop-blur-sm">
+                <div className="bg-slate-900 border-2 border-rose-600 rounded-3xl p-6 w-full max-w-sm text-center space-y-4 shadow-2xl text-white">
+                  <div className="w-16 h-16 bg-rose-600/20 border-2 border-rose-500 text-rose-500 rounded-full flex items-center justify-center mx-auto animate-bounce shadow-lg">
+                    <AlertTriangle className="w-8 h-8" />
+                  </div>
+
+                  <div className="space-y-1">
+                    <span className="px-3 py-1 bg-rose-600 text-white font-mono rounded-full text-[10px] font-black uppercase tracking-wider">
+                      🚨 TIME OVER / মেয়াদ শেষ!
+                    </span>
+                    <h3 className="text-base font-black text-rose-400 pt-2">
+                      জরুরি লোন পরিশোধ সতর্কবার্তা!
+                    </h3>
+                  </div>
+
+                  <div className="bg-slate-950 border border-rose-500/40 rounded-2xl p-3.5 space-y-2 text-xs font-mono text-left">
+                    <div className="flex justify-between items-center border-b border-slate-800 pb-1.5">
+                      <span className="text-slate-400">বকেয়া লোন:</span>
+                      <span className="text-rose-400 font-black text-sm">৳{user.loanDue}</span>
+                    </div>
+                    <div className="flex justify-between items-center border-b border-slate-800 pb-1.5">
+                      <span className="text-slate-400">পরিশোধের শেষ তারিখ:</span>
+                      <span className="text-amber-400 font-bold">{user.loanDueDate}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-400">বর্তমান মেইন ব্যালেন্স:</span>
+                      <span className="text-emerald-400 font-bold">৳{user.balance}</span>
+                    </div>
+                  </div>
+
+                  <p className="text-[11px] text-slate-300 leading-relaxed font-sans">
+                    আপনার লোন পরিশোধের নির্ধারিত সময়সীমা পার হয়ে গেছে! দয়া করে অবিলম্বে <strong className="text-emerald-400">ব্যালেন্স এড (Add Balance)</strong> করুন। একাউন্টে টাকা যোগ করলেই স্বয়ংক্রিয়ভাবে লোন পরিশোধ হয়ে যাবে।
+                  </p>
+
+                  <div className="flex flex-col gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowOverdueModal(false);
+                        setActiveScreen('recharge');
+                      }}
+                      className="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold text-xs rounded-xl shadow-lg transition flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <PlusCircle className="w-4 h-4" />
+                      টাকা এড করুন (Add Balance)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowOverdueModal(false)}
+                      className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl transition cursor-pointer"
+                    >
+                      বুঝেছি, পরে এড করব
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
           {/* SCREEN 1: HOME PANEL */}
           {activeScreen === 'home' && (
             <div className="p-3 space-y-4">
               
               {homeSubMode === 'menu' && (
                 <>
+                  {/* PERSISTENT LOAN NOTICE CARD */}
+                  {(() => {
+                    const todayStr = new Date().toISOString().split('T')[0];
+                    const isLoanOverdue = (user.loanDue || 0) > 0 && user.loanDueDate && user.loanDueDate < todayStr;
+                    if ((user.loanDue || 0) <= 0) return null;
+
+                    return (
+                      <div className={`p-3.5 rounded-2xl border shadow-md space-y-2 text-xs ${
+                        isLoanOverdue 
+                          ? 'bg-rose-950/90 border-rose-500 text-rose-100 animate-pulse' 
+                          : 'bg-amber-950/80 border-amber-500/60 text-amber-100'
+                      }`}>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2 font-black text-xs">
+                            <AlertTriangle className={`w-4 h-4 ${isLoanOverdue ? 'text-rose-400' : 'text-amber-400'}`} />
+                            <span>{isLoanOverdue ? '🚨 লোন পরিশোধের সময় পার হয়ে গেছে!' : '💳 আপনার বকেয়া লোন তথ্য'}</span>
+                          </div>
+                          <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black font-mono ${
+                            isLoanOverdue ? 'bg-rose-600 text-white' : 'bg-amber-500 text-slate-950'
+                          }`}>
+                            {isLoanOverdue ? 'Time Over (সময় পার)' : 'বকেয়া আছে'}
+                          </span>
+                        </div>
+
+                        <div className="bg-slate-900/80 rounded-xl p-2.5 grid grid-cols-2 gap-2 text-[11px] font-mono border border-white/10">
+                          <div>
+                            <span className="text-slate-400 block text-[9px]">বকেয়া লোন</span>
+                            <strong className="text-rose-400 text-xs font-black">৳{user.loanDue}</strong>
+                          </div>
+                          <div>
+                            <span className="text-slate-400 block text-[9px]">পরিশোধের শেষ তারিখ</span>
+                            <strong className="text-amber-300 text-xs font-bold">{user.loanDueDate || 'নির্ধারিত নেই'}</strong>
+                          </div>
+                        </div>
+
+                        <p className="text-[10.5px] leading-tight text-slate-200">
+                          💡 একাউন্টে টাকা রিচার্জ/এড করলে স্বয়ংক্রিয়ভাবে বকেয়া লোন কেটে নেওয়া হবে।
+                        </p>
+
+                        <button
+                          type="button"
+                          onClick={() => setActiveScreen('recharge')}
+                          className="w-full py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] rounded-lg transition shadow-xs flex items-center justify-center gap-1 cursor-pointer"
+                        >
+                          <PlusCircle className="w-3.5 h-3.5" />
+                          টাকা এড করে লোন পরিশোধ করুন
+                        </button>
+                      </div>
+                    );
+                  })()}
+
                   {/* Profile welcome bar */}
                   <div className="bg-white rounded-2xl p-3 shadow-sm border border-slate-100 flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2.5">
