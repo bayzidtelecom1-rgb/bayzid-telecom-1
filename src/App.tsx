@@ -10,7 +10,7 @@ import { User, Offer, BalanceRequest, OfferOrder, AppConfig, OperatorName, LoanR
 import UserApp from './components/UserApp';
 import AdminPanel from './components/AdminPanel';
 import { Shield, Sparkles, Smartphone, LogOut, CheckCircle, SmartphoneIcon, User as UserIcon, Settings, Plus, RotateCcw } from 'lucide-react';
-import { onSnapshot, collection, addDoc } from 'firebase/firestore';
+import { onSnapshot, collection, addDoc, doc, query, where, limit } from 'firebase/firestore';
 import { db } from './lib/firebase';
 import {
   fetchAppSettings,
@@ -95,58 +95,6 @@ export default function App() {
     localStorage.setItem('bayzid_telecom_is_logged_in', isLoggedIn ? 'true' : 'false');
   }, [isLoggedIn]);
 
-  // Load and synchronize data with Supabase in real-time
-  const loadAllData = async () => {
-    if (!isSupabaseConfigured()) {
-      setIsDbConnected(false);
-      return;
-    }
-
-    try {
-      const conn = await checkSupabaseConnection();
-      if (!conn.success) {
-        console.warn('Supabase database connection failed:', conn.message);
-        setIsDbConnected(false);
-        return;
-      }
-
-      const dbConfig = await fetchAppSettings();
-      if (dbConfig) {
-        setConfig(dbConfig);
-      }
-
-      const dbOffers = await fetchDriveOffers();
-      if (dbOffers) {
-        setOffers(dbOffers);
-      }
-
-      const dbUsers = await fetchUsersProfiles();
-      if (dbUsers) {
-        setUsers(dbUsers);
-      }
-
-      const dbDeposits = await fetchDeposits();
-      if (dbDeposits) {
-        setBalanceRequests(dbDeposits);
-      }
-
-      const dbOrders = await fetchOrders();
-      if (dbOrders) {
-        setOrders(dbOrders);
-      }
-
-      const dbLoans = await fetchLoanRecords();
-      if (dbLoans) {
-        setLoanRecords(dbLoans);
-      }
-
-      setIsDbConnected(true);
-    } catch (err) {
-      console.warn('Error loading real-time Firebase data, utilizing local persistence fallback:', err);
-      setIsDbConnected(false);
-    }
-  };
-
   useEffect(() => {
     // One-time cleanup of local storage demo data to satisfy the user's purge request
     const hasCleaned = localStorage.getItem('bayzid_telecom_demo_cleaned_v9');
@@ -159,32 +107,32 @@ export default function App() {
       return;
     }
 
-    loadAllData();
-
     if (!db) {
+      setIsDbConnected(false);
       return;
     }
 
-    // Subscribe to real-time events on Firebase Firestore directly for immediate updates
-    const unsubSettings = onSnapshot(collection(db, 'settings'), (snapshot) => {
-      snapshot.forEach((docSnap) => {
-        if (docSnap.id === 'app_config') {
-          const data = docSnap.data();
-          setConfig({
-            telecomName: data.telecomName || 'Bayzid Telecom',
-            bkashNumber: data.bkashNumber || '01601202721',
-            nagadNumber: data.nagadNumber || '01601202721',
-            rocketNumber: data.rocketNumber || '01601202721',
-            supportTelegram: data.supportTelegram || 'https://t.me/bayzidtelecom_bd',
-            supportWhatsapp: data.supportWhatsapp || 'https://wa.me/8801601202721',
-            supportFacebook: data.supportFacebook || 'https://facebook.com/bayzidtelecom',
-            supportYoutube: data.supportYoutube || 'https://youtube.com/c/bayzidtelecom',
-            noticeText: data.noticeText || 'বিসমিল্লাহির রহমানির রহিম। আল্লাহ ভরসা। বায়জিদ টেলিকম-এ আপনাকে স্বাগতম!'
-          });
-        }
-      });
+    setIsDbConnected(true);
+
+    // 1. Settings (App config) - single document listener
+    const unsubSettings = onSnapshot(doc(db, 'settings', 'app_config'), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setConfig({
+          telecomName: data.telecomName || 'Bayzid Telecom',
+          bkashNumber: data.bkashNumber || '01601202721',
+          nagadNumber: data.nagadNumber || '01601202721',
+          rocketNumber: data.rocketNumber || '01601202721',
+          supportTelegram: data.supportTelegram || 'https://t.me/bayzidtelecom_bd',
+          supportWhatsapp: data.supportWhatsapp || 'https://wa.me/8801601202721',
+          supportFacebook: data.supportFacebook || 'https://facebook.com/bayzidtelecom',
+          supportYoutube: data.supportYoutube || 'https://youtube.com/c/bayzidtelecom',
+          noticeText: data.noticeText || 'বিসমিল্লাহির রহমানির রহিম। আল্লাহ ভরসা। বায়জিদ টেলিকম-এ আপনাকে স্বাগতম!'
+        });
+      }
     });
 
+    // 2. Drive Offers - active pack listings
     const unsubOffers = onSnapshot(collection(db, 'offers'), (snapshot) => {
       const dbOffers: Offer[] = [];
       snapshot.forEach((docSnap) => {
@@ -202,39 +150,76 @@ export default function App() {
           isActive: data.isActive !== false
         });
       });
-      if (dbOffers.length > 0) {
-        setOffers(dbOffers);
-      } else {
-        setOffers([]);
-      }
+      setOffers(dbOffers);
     });
 
-    const unsubUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
-      const dbUsers: User[] = [];
-      snapshot.forEach((docSnap) => {
-        const data = docSnap.data();
-        dbUsers.push({
-          id: docSnap.id,
-          name: data.name || docSnap.id,
-          phone: data.phone || '',
-          balance: Number(data.balance) || 0,
-          loanDue: Number(data.loanDue) || 0,
-          role: data.role || 'user',
-          level: data.level || 'Retailer',
-          verified: data.verified !== false,
-          deviceDetails: data.deviceDetails || 'Registered Device',
-          password: data.password || '123456',
-          pin: data.pin || '1234',
-          deviceLocked: data.deviceLocked || false,
-          twoStepEnabled: data.twoStepEnabled || false,
+    const isAdminView = currentView === 'admin';
+
+    // 3. Users Subscription (Scoped to single user in User view vs all in Admin view)
+    let unsubUsers: () => void;
+    if (isAdminView) {
+      unsubUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
+        const dbUsers: User[] = [];
+        snapshot.forEach((docSnap) => {
+          const data = docSnap.data();
+          dbUsers.push({
+            id: docSnap.id,
+            name: data.name || docSnap.id,
+            phone: data.phone || '',
+            balance: Number(data.balance) || 0,
+            loanDue: Number(data.loanDue) || 0,
+            loanDueDate: data.loanDueDate || '',
+            role: data.role || 'user',
+            level: data.level || 'Retailer',
+            verified: data.verified !== false,
+            deviceDetails: data.deviceDetails || 'Registered Device',
+            password: data.password || '123456',
+            pin: data.pin || '1234',
+            deviceLocked: data.deviceLocked || false,
+            twoStepEnabled: data.twoStepEnabled || false,
+          });
         });
+        if (dbUsers.length > 0) {
+          setUsers(dbUsers);
+        }
       });
-      if (dbUsers.length > 0) {
-        setUsers(dbUsers);
-      }
-    });
+    } else {
+      unsubUsers = onSnapshot(doc(db, 'users', selectedUserId), (docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          const currentUserProfile: User = {
+            id: docSnap.id,
+            name: data.name || docSnap.id,
+            phone: data.phone || '',
+            balance: Number(data.balance) || 0,
+            loanDue: Number(data.loanDue) || 0,
+            loanDueDate: data.loanDueDate || '',
+            role: data.role || 'user',
+            level: data.level || 'Retailer',
+            verified: data.verified !== false,
+            deviceDetails: data.deviceDetails || 'Registered Device',
+            password: data.password || '123456',
+            pin: data.pin || '1234',
+            deviceLocked: data.deviceLocked || false,
+            twoStepEnabled: data.twoStepEnabled || false,
+          };
+          setUsers(prev => {
+            const exists = prev.some(u => u.id === currentUserProfile.id);
+            if (exists) {
+              return prev.map(u => u.id === currentUserProfile.id ? currentUserProfile : u);
+            }
+            return [...prev, currentUserProfile];
+          });
+        }
+      });
+    }
 
-    const unsubDeposits = onSnapshot(collection(db, 'deposits'), (snapshot) => {
+    // 4. Deposits Subscription (Add Balance requests - scoped or limited)
+    const depositsQuery = isAdminView
+      ? query(collection(db, 'deposits'), limit(80))
+      : query(collection(db, 'deposits'), where('userId', '==', selectedUserId), limit(30));
+
+    const unsubDeposits = onSnapshot(depositsQuery, (snapshot) => {
       const dbDeposits: BalanceRequest[] = [];
       snapshot.forEach((docSnap) => {
         const data = docSnap.data();
@@ -253,7 +238,12 @@ export default function App() {
       setBalanceRequests(dbDeposits.sort((a,b) => parseDateToMs(b.createdAt) - parseDateToMs(a.createdAt)));
     });
 
-    const unsubOrders = onSnapshot(collection(db, 'orders'), (snapshot) => {
+    // 5. Orders Subscription (Drive orders - scoped or limited)
+    const ordersQuery = isAdminView
+      ? query(collection(db, 'orders'), limit(80))
+      : query(collection(db, 'orders'), where('userId', '==', selectedUserId), limit(30));
+
+    const unsubOrders = onSnapshot(ordersQuery, (snapshot) => {
       const dbOrders: OfferOrder[] = [];
       snapshot.forEach((docSnap) => {
         const data = docSnap.data();
@@ -273,7 +263,12 @@ export default function App() {
       setOrders(dbOrders.sort((a,b) => parseDateToMs(b.createdAt) - parseDateToMs(a.createdAt)));
     });
 
-    const unsubLoans = onSnapshot(collection(db, 'loan_records'), (snapshot) => {
+    // 6. Loan Records Subscription (Scoped or limited)
+    const loansQuery = isAdminView
+      ? query(collection(db, 'loan_records'), limit(80))
+      : query(collection(db, 'loan_records'), where('userId', '==', selectedUserId), limit(30));
+
+    const unsubLoans = onSnapshot(loansQuery, (snapshot) => {
       const dbLoans: LoanRecord[] = [];
       snapshot.forEach((docSnap) => {
         const data = docSnap.data();
@@ -300,7 +295,7 @@ export default function App() {
       unsubOrders();
       unsubLoans();
     };
-  }, []);
+  }, [selectedUserId, currentView]);
 
   const handleRegisterUser = async (newUser: User) => {
     setUsers(prev => {
@@ -369,12 +364,7 @@ export default function App() {
     setUsers(prev => prev.map(u => u.id === userId ? { ...u, ...updatedFields } : u));
     
     // Remote database write
-    const success = await updateUserProfile(userId, updatedFields);
-    if (success) {
-      loadAllData();
-    } else {
-      console.warn('Local update only (Firebase not connected/configured)');
-    }
+    await updateUserProfile(userId, updatedFields);
   };
 
   // New demo user creation form modal state
@@ -431,12 +421,9 @@ export default function App() {
     setBalanceRequests(prev => [newRequest, ...prev]);
 
     try {
-      const success = await createDepositRequest(activeUser.id, req.method, req.amount, req.senderNumber, req.transactionId);
-      if (success) {
-        loadAllData();
-      }
+      await createDepositRequest(activeUser.id, req.method, req.amount, req.senderNumber, req.transactionId);
     } catch (err) {
-      console.warn('Supabase not connected. Running offline-local balance request...');
+      console.warn('Firebase deposit write error:', err);
     }
   };
 
@@ -462,14 +449,11 @@ export default function App() {
 
     try {
       const res = await purchaseOfferRPC(activeUser.id, order.offerId, order.targetPhone, order.offerPrice);
-      if (res.success) {
-        loadAllData();
-      } else {
-        alert(`Supabase RPC transaction error: ${res.error || 'Check database connectivity.'}`);
-        loadAllData(); // reset balance and state to match database truth
+      if (!res.success) {
+        alert(`Transaction error: ${res.error || 'Check database connectivity.'}`);
       }
     } catch (err) {
-      console.warn('Supabase offline. Handled transaction on local state.');
+      console.warn('Firebase order error:', err);
     }
   };
 
@@ -511,12 +495,7 @@ export default function App() {
       return u;
     }));
 
-    const success = await approveDepositRequest(id, request.amount);
-    if (success) {
-      loadAllData();
-    } else {
-      console.warn('Local update only (Supabase offline)');
-    }
+    await approveDepositRequest(id, request.amount);
   };
 
   // Callback: Admin grants loan to user
@@ -553,7 +532,6 @@ export default function App() {
 
     try {
       await grantLoanToUser(userId, amount, note, finalDueDate);
-      await loadAllData();
     } catch (err) {
       console.warn('Error granting loan to user:', err);
     }
@@ -562,13 +540,7 @@ export default function App() {
   // Callback: Admin rejects deposit request
   const handleRejectBalance = async (id: string) => {
     setBalanceRequests(prev => prev.map(r => r.id === id ? { ...r, status: 'Rejected' } : r));
-
-    const success = await rejectDepositRequest(id);
-    if (success) {
-      loadAllData();
-    } else {
-      console.warn('Local update only (Supabase offline)');
-    }
+    await rejectDepositRequest(id);
   };
 
   // Callback: Admin adds a new offer pack
@@ -579,25 +551,13 @@ export default function App() {
       isActive: true
     };
     setOffers(prev => [...prev, createdLocal]);
-
-    const res = await createDriveOffer({ ...newOffer, isActive: true });
-    if (res) {
-      loadAllData();
-    } else {
-      console.warn('Local update only (Supabase offline)');
-    }
+    await createDriveOffer({ ...newOffer, isActive: true });
   };
 
   // Callback: Admin deletes an offer pack
   const handleDeleteOffer = async (id: string) => {
     setOffers(prev => prev.filter(o => o.id !== id));
-
-    const success = await deleteDriveOffer(id);
-    if (success) {
-      loadAllData();
-    } else {
-      console.warn('Local update only (Supabase offline)');
-    }
+    await deleteDriveOffer(id);
   };
 
   // Callback: Admin toggles offer active status
@@ -606,12 +566,7 @@ export default function App() {
 
     const offer = offers.find(o => o.id === id);
     if (offer) {
-      const success = await updateDriveOffer(id, { isActive: !offer.isActive });
-      if (success) {
-        loadAllData();
-      } else {
-        console.warn('Local update only (Supabase offline)');
-      }
+      await updateDriveOffer(id, { isActive: !offer.isActive });
     }
   };
 
@@ -622,10 +577,7 @@ export default function App() {
 
     try {
       // 2. Perform updates in Firebase / database
-      const success = await bulkUpdateDriveOffersStatus(isActive);
-      if (success) {
-        await loadAllData();
-      }
+      await bulkUpdateDriveOffersStatus(isActive);
     } catch (err) {
       console.warn('Bulk update error in database, fell back to local state:', err);
     }
@@ -634,13 +586,7 @@ export default function App() {
   // Callback: Admin updates offer details
   const handleUpdateOffer = async (id: string, updatedFields: Partial<Offer>) => {
     setOffers(prev => prev.map(o => o.id === id ? { ...o, ...updatedFields } : o));
-
-    const success = await updateDriveOffer(id, updatedFields);
-    if (success) {
-      loadAllData();
-    } else {
-      console.warn('Local update only (Supabase offline)');
-    }
+    await updateDriveOffer(id, updatedFields);
   };
 
   // Callback: Admin dispatches / completes SIM order
@@ -667,7 +613,6 @@ export default function App() {
 
     const success = await completeOrder(id);
     if (success) {
-      loadAllData();
       alert(`অর্ডার #${id.slice(-6)} সফলভাবে এপ্রুভ/সাক্সেস করা হলো!`);
     } else {
       console.warn('Local update only');
@@ -695,7 +640,6 @@ export default function App() {
 
     const success = await cancelAndRefundOrderRPC(id, order.offerPrice);
     if (success) {
-      loadAllData();
       alert(`অর্ডার #${id.slice(-6)} কেন্সিল করা হলো এবং ${order.offerPrice} টাকা গ্রাহক ${order.userName}-এর ওয়ালেটে রিফান্ড করা হলো!`);
     } else {
       alert(`Order refunded locally! ${order.offerPrice} Tk returned to ${order.userName}'s wallet.`);
@@ -705,13 +649,7 @@ export default function App() {
   // Callback: Admin updates general branding settings
   const handleUpdateConfig = async (newConfig: AppConfig) => {
     setConfig(newConfig);
-
-    const success = await updateAppSettings(newConfig);
-    if (success) {
-      loadAllData();
-    } else {
-      console.warn('Local update only (Supabase offline)');
-    }
+    await updateAppSettings(newConfig);
   };
 
   // Reset simulator to defaults
@@ -764,8 +702,7 @@ export default function App() {
       const createdUser = await adminCreateUser(newUserName, newUserPhone, newUserLevel, defaultPass, defaultPin);
       if (createdUser) {
         setSelectedUserId(createdUser.id);
-        alert(`New Reseller Client "${newUserName}" created successfully in Supabase Database!`);
-        loadAllData();
+        alert(`New Reseller Client "${newUserName}" created successfully in Database!`);
       } else {
         alert(`New Reseller Client "${newUserName}" created locally.`);
       }
@@ -831,7 +768,6 @@ export default function App() {
               if (success) {
                 setOrders([]);
                 localStorage.removeItem('bayzid_telecom_orders');
-                await loadAllData();
                 alert('All order data has been permanently deleted from Database and Local Cache!');
               } else {
                 alert('Could not delete orders from database (Firebase offline/error).');
@@ -842,7 +778,6 @@ export default function App() {
               if (success) {
                 setBalanceRequests([]);
                 localStorage.removeItem('bayzid_telecom_balance_requests');
-                await loadAllData();
                 alert('All deposit request data has been permanently deleted from Database and Local Cache!');
               } else {
                 alert('Could not delete deposit requests from database (Firebase offline/error).');
@@ -853,7 +788,6 @@ export default function App() {
               if (success) {
                 setUsers(prev => prev.filter(u => u.role === 'admin'));
                 localStorage.removeItem('bayzid_telecom_users_v2');
-                await loadAllData();
                 alert('All reseller users (except Admin) have been permanently deleted from Database and Local Cache!');
               } else {
                 alert('Could not delete reseller users from database (Firebase offline/error).');
