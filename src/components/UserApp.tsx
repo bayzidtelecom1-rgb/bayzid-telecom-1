@@ -392,8 +392,8 @@ export default function UserApp({
     setRechargeSuccess(false);
 
     const cleanNum = rechargePhone.replace(/[^0-9]/g, '');
-    if (cleanNum.length < 11) {
-      setRechargeError('অনুগ্রহ করে সঠিক ১১ ডিজিটের মোবাইল নম্বর লিখুন!');
+    if (cleanNum.length !== 11) {
+      setRechargeError('অনুগ্রহ করে সঠিক ১১ ডিজিটের মোবাইল নম্বর লিখুন (যেমন: 017xxxxxxxx)!');
       return;
     }
 
@@ -559,8 +559,8 @@ export default function UserApp({
     }
 
     const cleanPhone = regPhone.replace(/[^0-9]/g, '');
-    if (cleanPhone.length < 11) {
-      setAuthError('সঠিক ১১ ডিজিটের মোবাইল নাম্বার দিন!');
+    if (cleanPhone.length !== 11) {
+      setAuthError('সঠিক ১১ ডিজিটের মোবাইল নাম্বার দিন (যেমন: 017xxxxxxxx)!');
       return;
     }
 
@@ -709,8 +709,8 @@ export default function UserApp({
     
     // Simple validation for Bangladeshi phone numbers
     const cleanNum = targetNumber.replace(/[^0-9]/g, '');
-    if (cleanNum.length < 11) {
-      setBuyError('সঠিক ১১ ডিজিটের মোবাইল নাম্বার লিখুন!');
+    if (cleanNum.length !== 11) {
+      setBuyError('সঠিক ১১ ডিজিটের মোবাইল নাম্বার লিখুন (যেমন: 01712345678)!');
       return;
     }
 
@@ -947,9 +947,10 @@ export default function UserApp({
                     <input
                       type="text"
                       required
+                      maxLength={11}
                       placeholder="যেমন: 018xxxxxxxx"
                       value={regPhone}
-                      onChange={(e) => setRegPhone(e.target.value)}
+                      onChange={(e) => setRegPhone(e.target.value.replace(/[^0-9]/g, '').slice(0, 11))}
                       className="w-full bg-slate-950/80 border border-slate-700/80 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-green-500 transition font-mono"
                     />
                   </div>
@@ -1567,7 +1568,7 @@ export default function UserApp({
                           maxLength={11}
                           placeholder="যেমন: 017xxxxxxxx"
                           value={rechargePhone}
-                          onChange={(e) => setRechargePhone(e.target.value.replace(/[^0-9]/g, ''))}
+                          onChange={(e) => setRechargePhone(e.target.value.replace(/[^0-9]/g, '').slice(0, 11))}
                           className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm text-slate-800 font-mono tracking-widest focus:outline-none focus:border-blue-500 text-center"
                         />
                       </div>
@@ -1709,17 +1710,18 @@ export default function UserApp({
 
                     <form onSubmit={handleBuyOfferConfirm} className="space-y-4">
                       <div className="space-y-1.5">
-                        <label className="block text-[11px] font-black text-slate-500 uppercase">যেই নাম্বারে অফারটি দিবেন (Target Number) *</label>
+                        <label className="block text-[11px] font-black text-slate-500 uppercase">যেই নাম্বারে অফারটি দিবেন (Target Number - ১১ ডিজিট) *</label>
                         <input
                           type="text"
                           required
+                          maxLength={11}
                           placeholder="যেমন: 01712345678"
                           value={targetNumber}
-                          onChange={(e) => setTargetNumber(e.target.value)}
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-800 font-mono tracking-wider text-center focus:outline-none focus:border-blue-500"
+                          onChange={(e) => setTargetNumber(e.target.value.replace(/[^0-9]/g, '').slice(0, 11))}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-800 font-mono tracking-wider text-center focus:outline-none focus:border-blue-500 font-bold"
                         />
                         <p className="text-[10px] text-rose-500 bg-rose-50/50 p-2 rounded-lg border border-rose-100 mt-1 flex items-start gap-1 leading-normal font-medium">
-                          <span className="shrink-0 text-xs">⚠️</span> নাম্বার ভুল হলে টাকা রিফান্ড বা অফার ফেরত আসবে না!
+                          <span className="shrink-0 text-xs">⚠️</span> ১১ ডিজিটের মোবাইল নম্বর দিন। নম্বর ভুল হলে টাকা রিফান্ড বা অফার ফেরত আসবে না!
                         </p>
                       </div>
 
